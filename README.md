@@ -41,3 +41,9 @@ An LLM-based Zero-Shot Traversability Prediction Method
     ```shell
     pip3 install -r requirements.txt
     ```
+
+## Running the package
+To run the traversability package, run
+```shell
+roslaunch wayfast_zero run_wayfast_zero.launch
+```
