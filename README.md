@@ -3,6 +3,7 @@ An LLM-based Zero-Shot Traversability Prediction Method
 
 ## System requirements
 - Linux (Tested on Ubuntu 20.04)
+- ROS Noetic
 - Python3 (Tested using Python 3.8) 
 - CUDA (Tested using CUDA 12.0)
 - PyTorch (Tested using Pytorch 2.2.2) 
@@ -12,17 +13,17 @@ An LLM-based Zero-Shot Traversability Prediction Method
 
 - Download your preferred SAM model checkpoint.
   - For `vit_b`:
-        ```shell
-        wget -P wayfast_zero/checkpoint https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth
-        ```
+    ```shell
+    wget -P wayfast_zero/checkpoint https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth
+    ```
   - For `vit_l`:
-        ```shell
-        wget -P wayfast_zero/checkpoint https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth
-        ```
+    ```shell
+    wget -P wayfast_zero/checkpoint https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth
+    ```
   - For `vit_h`:
-        ```shell
-        wget -P wayfast_zero/checkpoint https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
-        ```
+    ```shell
+    wget -P wayfast_zero/checkpoint https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
+    ```
 
 - Add the chosen checkpoint to `wayfast_zero/config/config/yaml`.
 
