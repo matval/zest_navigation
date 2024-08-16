@@ -1,2 +1,41 @@
 # WayFAST Zero
-A Zero-Shot Traversability Prediction Method
+An LLM-based Zero-Shot Traversability Prediction Method
+
+## System requirements
+- Linux (Tested on Ubuntu 20.04)
+- Python3 (Tested using Python 3.8) 
+- CUDA (Tested using CUDA 12.0)
+- PyTorch (Tested using Pytorch 2.2.2) 
+
+## Setup
+- Create a file `api_key.txt` with your OpenAI API key at the root directory of this package.
+
+- Download SAM model checkpoint.
+  - For vit_b:
+        ```shell
+        wget -P wayfast_zero/checkpoint https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth
+        ```
+  - For vit_l:
+        ```shell
+        wget -P wayfast_zero/checkpoint https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth
+        ```
+  - For vit_h:
+        ```shell
+        wget -P wayfast_zero/checkpoint https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
+        ```
+
+- Create a python virtual environment and activate it.
+    ```shell
+    python3 -m virtualenv env
+    source env/bin/activate
+    ```
+
+- Install Pytorch.
+    ```shell
+    pip3 install torch==2.2.2 torchvision
+    ```
+
+- Install the python requirements.
+    ```shell
+    pip3 install -r requirements.txt
+    ```

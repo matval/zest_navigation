@@ -1,0 +1,11 @@
+<!-- load_params.launch -->
+<launch>
+    <!-- Use python virtualenv -->
+    <arg name="venv" value="$(find wayfast_zero)/../env/bin/python3" />
+
+    <!-- Load the YAML file as ROS parameters -->
+    <rosparam file="$(find wayfast_zero)/config/config.yaml" command="load" />
+
+    <!-- Start your nodes (optional) -->
+    <node pkg="wayfast_zero" type="wayfast_zero.py" name="wayfast_zero" output="screen" launch-prefix = "$(arg venv)" />
+</launch>

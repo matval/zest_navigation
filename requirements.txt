@@ -1,0 +1,5 @@
+numpy>=1.19.1
+opencv-python
+rospkg
+segment-anything
+openai
