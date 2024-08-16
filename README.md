@@ -10,19 +10,21 @@ An LLM-based Zero-Shot Traversability Prediction Method
 ## Setup
 - Create a file `api_key.txt` with your OpenAI API key at the root directory of this package.
 
-- Download SAM model checkpoint.
-  - For vit_b:
+- Download your preferred SAM model checkpoint.
+  - For `vit_b`:
         ```shell
         wget -P wayfast_zero/checkpoint https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth
         ```
-  - For vit_l:
+  - For `vit_l`:
         ```shell
         wget -P wayfast_zero/checkpoint https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth
         ```
-  - For vit_h:
+  - For `vit_h`:
         ```shell
         wget -P wayfast_zero/checkpoint https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
         ```
+
+- Add the chosen checkpoint to `wayfast_zero/config/config/yaml`.
 
 - Create a python virtual environment and activate it.
     ```shell
