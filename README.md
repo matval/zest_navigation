@@ -44,7 +44,7 @@ An LLM-based Zero-Shot Traversability Prediction Method
     ```
 
 ## Running the package
-To run the traversability package, run
+To use the traversability package, run
 ```shell
 roslaunch wayfast_zero run_wayfast_zero.launch
 ```

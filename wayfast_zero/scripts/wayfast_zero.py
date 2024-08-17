@@ -63,6 +63,7 @@ class WayFastZero:
 
         # Publisher
         self.image_pub = rospy.Publisher(output_topic, Image, queue_size=1)
+        self.debug_pub = rospy.Publisher('numbered_image', Image, queue_size=1)
 
         rospy.spin()
 
@@ -106,7 +107,7 @@ class WayFastZero:
 
         return ranks
     
-    def add_numbers_to_masks(self, anns):
+    def add_numbers_to_masks(self, anns, image):
         """
         Adds numbers to corresponding masks on the image.
         
@@ -124,15 +125,10 @@ class WayFastZero:
         filtered_anns = [ann for ann in anns if ann['area'] > self.area_threshold]
         sorted_anns = sorted(filtered_anns, key=(lambda x: x['area']), reverse=True)[:10]
 
-        image = np.ones((sorted_anns[0]['segmentation'].shape[0], sorted_anns[0]['segmentation'].shape[1], 4))
-        image[:,:,3] = 0
-
         rank_dict = {}
 
         for i, ann in enumerate(sorted_anns, start=1):
             m = ann['segmentation']
-            color_mask = np.concatenate([np.random.random(3), [0.5]])
-            image[m] = color_mask
             y, x = np.where(m)
 
             if len(y) > 0 and len(x) > 0:
@@ -140,7 +136,7 @@ class WayFastZero:
                 cY, cX = int(np.mean(y)), int(np.mean(x))
 
                 # Add the number at the center of the mask
-                cv2.putText(image, str(i), (cX, cY), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+                cv2.putText(image, str(i), (cX, cY), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
 
                 # Return a dictionary with key:mask number and value:corresponding mask
                 rank_dict[str(i)] = m
@@ -169,7 +165,19 @@ class WayFastZero:
         print(f"Time taken for SAM: {time.time() - time_start}")
 
         # Add numbers to the masks
-        rank_dict, image = self.add_numbers_to_masks(masks)
+        rank_dict, image = self.add_numbers_to_masks(masks, cv_image)
+
+        # Convert the image to ros msg
+        image_msg = Image()
+        image_msg.header = image_msg.header
+        image_msg.encoding = 'rgb8'
+        image_msg.height = image.shape[0]
+        image_msg.width = image.shape[1]
+        image_msg.step = image.shape[1] * 3
+        image_msg.data = image.astype('uint8').flatten().tolist()
+
+        # Publish the annotated image
+        self.debug_pub.publish(image_msg)
 
         time_start = time.time()
         # Query the GPT model
