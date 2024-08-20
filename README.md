@@ -9,6 +9,11 @@ An LLM-based Zero-Shot Traversability Prediction Method
 - PyTorch (Tested using Pytorch 2.2.2) 
 
 ## Setup
+- Install Octomap ROS
+  ```shell
+    sudo apt install ros-noetic-octomap-ros
+    ```
+
 - Create a file `api_key.txt` with your OpenAI API key at the root directory of this package.
 
 - Download your preferred SAM model checkpoint.

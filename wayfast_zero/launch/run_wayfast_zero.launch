@@ -6,6 +6,18 @@
     <!-- Load the YAML file as ROS parameters -->
     <rosparam file="$(find wayfast_zero)/config/config.yaml" command="load" />
 
-    <!-- Start your nodes (optional) -->
-    <node pkg="wayfast_zero" type="wayfast_zero.py" name="wayfast_zero" output="screen" launch-prefix = "$(arg venv)" />
+    <!-- Start the prediction node -->
+    <!-- <node pkg="wayfast_zero" type="wayfast_zero.py" name="wayfast_zero" output="screen" launch-prefix = "$(arg venv)" /> -->
+
+    <!-- Start the mock prediction node -->
+    <node pkg="octomap_utils" type="image_transform.py" name="trav_images" output="log"/>
+
+    <!-- Start the camera to lidar projection node -->
+    <include file="$(find lidar_camera_fusion)/launch/vlp16OnImg_offline.launch" />
+
+    <!-- Start the traversability octomap node -->
+    <node pkg="semantic_bki" type="kitti_node" name="kitti_node" output="screen">
+        <!-- Load method configuration from file -->
+        <rosparam file="$(find semantic_bki)/config/methods/semantic_bki.yaml" command="load" />
+    </node>
 </launch>
