@@ -16,8 +16,12 @@
     <include file="$(find lidar_camera_fusion)/launch/vlp16OnImg_offline.launch" />
 
     <!-- Start the traversability octomap node -->
-    <node pkg="semantic_bki" type="kitti_node" name="kitti_node" output="screen">
-        <!-- Load method configuration from file -->
-        <rosparam file="$(find semantic_bki)/config/methods/semantic_bki.yaml" command="load" />
+    <!-- <node pkg="traversability_bki" type="octomap_node" name="octomap_node" output="screen">
+        <rosparam file="$(find traversability_bki)/config/traversability_bki.yaml" command="load" />
+    </node> -->
+
+    <!--Start the LA3DM node -->
+    <node pkg="la3dm" type="bgkloctomap_server" name="la3dm_server" output="screen">
+        <rosparam file="$(find la3dm)/config/bgkloctomap_large_map.yaml" command="load"/>
     </node>
 </launch>
