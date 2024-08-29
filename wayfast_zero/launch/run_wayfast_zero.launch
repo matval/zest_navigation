@@ -13,7 +13,7 @@
     <node pkg="octomap_utils" type="image_transform.py" name="trav_images" output="log"/>
 
     <!-- Start the camera to lidar projection node -->
-    <include file="$(find lidar_camera_fusion)/launch/vlp16OnImg_offline.launch" />
+    <include file="$(find image_projection)/launch/vlp16OnImg_offline.launch" />
 
     <!-- Start the traversability octomap node -->
     <!-- <node pkg="traversability_bki" type="octomap_node" name="octomap_node" output="screen">
