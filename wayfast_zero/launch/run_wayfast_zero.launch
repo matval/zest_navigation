@@ -12,16 +12,35 @@
     <!-- Start the mock prediction node -->
     <node pkg="octomap_utils" type="image_transform.py" name="trav_images" output="log"/>
 
+    <!-- Start WayFast for traversability prediction -->
+    <node pkg="octomap_utils" type="wayfast_node.py" name="wayfast" output="screen">
+        <param name="model_path" value="$(find octomap_utils)/checkpoints/best_wayfast.pth"/>
+    </node>
+
     <!-- Start the camera to lidar projection node -->
-    <include file="$(find image_projection)/launch/vlp16OnImg_offline.launch" />
+    <include file="$(find image_projection)/launch/vlp16OnImg_offline.launch">
+        <!-- <arg name="image_topic"      value="/terrasentia/front_mono/image_rect_gray/compressed"/> -->
+        <arg name="image_topic"      value="/terrasentia/traversability_map/compressed"/>
+        <arg name="pointcloud_topic" value="/terrasentia/velodyne_points"/>
+    </include>
 
     <!-- Start the traversability octomap node -->
     <node pkg="traversability_bki" type="octomap_node" name="octomap_node" output="screen">
         <rosparam file="$(find traversability_bki)/config/traversability_bki.yaml" command="load" />
     </node>
 
-    <!--Start the LA3DM node -->
+    <!--Start the LA3DM BGKL node -->
     <!-- <node pkg="la3dm" type="bgkloctomap_server" name="la3dm_server" output="screen">
         <rosparam file="$(find la3dm)/config/bgkloctomap_large_map.yaml" command="load"/>
     </node> -->
+
+    <!--Start the LA3DM BGK node -->
+    <!-- <node pkg="la3dm" type="bgkoctomap_server" name="la3dm_server" output="screen">
+        <rosparam file="$(find la3dm)/config/bgkoctomap_large_map.yaml" command="load"/>
+    </node> -->
+
+    <!-- Start the path planning node -->
+    <node pkg="kinodynamic_rrt" type="rrt_node" name="rrt_node" output="screen">
+        <rosparam file="$(find kinodynamic_rrt)/config/rrt_params.yaml" command="load" />
+    </node>
 </launch>
