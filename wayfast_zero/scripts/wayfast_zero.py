@@ -18,7 +18,7 @@ from openai import OpenAI
 class WayFastZero:
     def __init__(self):
         # Parameters
-        input_topic = rospy.get_param("input_topic", "/camera/image/compressed")
+        input_topic = rospy.get_param("input_topic", "/terrasentia/zed2/zed_node/left/image_rect_color/compressed")
         output_topic = rospy.get_param("output_topic", "/traversability_map")
         self.image_resolution = rospy.get_param('image_resolution', [336, 224])
         self.area_threshold = rospy.get_param('area_threshold', 500)
@@ -38,6 +38,7 @@ class WayFastZero:
         sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
         sam.to(device=device)
 
+
         self.mask_generator = SamAutomaticMaskGenerator(
             model                   = sam,
             box_nms_thresh          = 1,
@@ -52,11 +53,10 @@ class WayFastZero:
         )
 
         # Load the ChatGPT model
-        if not self.test_mode:
-            key_file = rospkg.RosPack().get_path('wayfast_zero') + '../api_key.txt'
-            with open(key_file, 'r') as file:
-                api_key = file.read().strip()
-            self.client = OpenAI(api_key=api_key)
+        key_file = rospkg.RosPack().get_path('wayfast_zero') + '/api_key.txt'
+        with open(key_file, 'r') as file:
+             api_key = file.read().strip()
+        self.client = OpenAI(api_key=api_key)
 
         # Subscriber
         self.image_sub = rospy.Subscriber(input_topic, CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
@@ -67,7 +67,7 @@ class WayFastZero:
 
         rospy.spin()
 
-    def query_gpt(self, image):
+    def query_gpt(self, image_path):
         """
         Queries the GPT model with the image.
 
@@ -78,11 +78,9 @@ class WayFastZero:
         - Ranks of the masks.
         """
         # Encode the image
-        base64_image = base64.b64encode(image).decode('utf-8')
-
-        if self.test_mode:
-            return "1,2,3,4,5"
-        
+        with open(image_path, "rb") as image_file:
+            base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+       
         # Query the model
         response = self.client.chat.completions.create(
             model="gpt-4o",
@@ -104,6 +102,7 @@ class WayFastZero:
         )
 
         ranks = response.choices[0].message.content
+        print("Here3")
 
         return ranks
     
@@ -155,6 +154,7 @@ class WayFastZero:
         cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
 
+
         # Resize the image
         cv_image = cv2.resize(cv_image, self.image_resolution)
 
@@ -166,7 +166,8 @@ class WayFastZero:
 
         # Add numbers to the masks
         rank_dict, image = self.add_numbers_to_masks(masks, cv_image)
-
+        cv2.imwrite("img.png",image)
+        
         # Convert the image to ros msg
         image_msg = Image()
         image_msg.header = image_msg.header
@@ -180,8 +181,8 @@ class WayFastZero:
         self.debug_pub.publish(image_msg)
 
         time_start = time.time()
-        # Query the GPT model
-        ranks = self.query_gpt(cv_image)
+        # Query the GPT model 
+        ranks = self.query_gpt("img.png")
         print(f"Time taken for GPT: {time.time() - time_start}")
 
         # Parse the ranks
