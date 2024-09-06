@@ -3,6 +3,8 @@ import time
 import rospy
 import rospkg
 import numpy as np
+import skimage as ski
+import polylabel
 
 from torch.cuda.amp import autocast
 
@@ -18,7 +20,7 @@ from openai import OpenAI
 class WayFastZero:
     def __init__(self):
         # Parameters
-        input_topic = rospy.get_param("input_topic", "/camera/image/compressed")
+        input_topic = rospy.get_param("input_topic", "/terrasentia/zed2/zed_node/left/image_rect_color/compressed")
         output_topic = rospy.get_param("output_topic", "/traversability_map")
         self.image_resolution = rospy.get_param('image_resolution', [336, 224])
         self.area_threshold = rospy.get_param('area_threshold', 500)
@@ -38,12 +40,13 @@ class WayFastZero:
         sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
         sam.to(device=device)
 
+
         self.mask_generator = SamAutomaticMaskGenerator(
             model                   = sam,
-            box_nms_thresh          = 1,
+            box_nms_thresh          = 0.7,
             crop_nms_thresh         = 0.7,
             crop_overlap_ratio      = 0.35,
-            points_per_side         = 16,
+            points_per_side         = 32,
             pred_iou_thresh         = 0.95,         # High confidence score
             stability_score_thresh  = 0.9,          # Compensate a bit on stability to capture big masks
             crop_n_layers           = 1,
@@ -52,11 +55,10 @@ class WayFastZero:
         )
 
         # Load the ChatGPT model
-        if not self.test_mode:
-            key_file = rospkg.RosPack().get_path('wayfast_zero') + '../api_key.txt'
-            with open(key_file, 'r') as file:
-                api_key = file.read().strip()
-            self.client = OpenAI(api_key=api_key)
+        key_file = rospkg.RosPack().get_path('wayfast_zero') + '/api_key.txt'
+        with open(key_file, 'r') as file:
+             api_key = file.read().strip()
+        self.client = OpenAI(api_key=api_key)
 
         # Subscriber
         self.image_sub = rospy.Subscriber(input_topic, CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
@@ -67,7 +69,7 @@ class WayFastZero:
 
         rospy.spin()
 
-    def query_gpt(self, image):
+    def query_gpt(self, image_path):
         """
         Queries the GPT model with the image.
 
@@ -78,11 +80,9 @@ class WayFastZero:
         - Ranks of the masks.
         """
         # Encode the image
-        base64_image = base64.b64encode(image).decode('utf-8')
-
-        if self.test_mode:
-            return "1,2,3,4,5"
-        
+        with open(image_path, "rb") as image_file:
+            base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+       
         # Query the model
         response = self.client.chat.completions.create(
             model="gpt-4o",
@@ -90,17 +90,19 @@ class WayFastZero:
                 {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "rank the numbers in the image in terms of traversability for robots and just give the numbers"},
+                    {"type": "text", "text": "In the image analyze the numbered regions and assign a traversability value for a robot between 0 and 1 \
+        where 0 represents  untravarsable areas or obstacles and dangerous areas like trees, cars etc and 1 represents traversable areas like roads.\
+        Consider terrain and general navigability with ground robots in mind. Output should be the traversavbility values from region 1 to n without the reasoning, for example 0,0.5,1,..."},
                     {
                     "type": "image_url",
                     "image_url": {
-                        "url":f"data:image/jpeg;base64,{base64_image}"
+                        "url":f"data:image/png;base64,{base64_image}"
                     },
                     },
                 ],
                 }
             ],
-            max_tokens=100
+            max_tokens=300
         )
 
         ranks = response.choices[0].message.content
@@ -120,26 +122,47 @@ class WayFastZero:
         # If there are no annotations, return
         if len(anns) == 0:
             return
+        anns = [ann for ann in anns if ann['area'] > 500]
+        sorted_anns = sorted(anns, key=(lambda x: x['area']), reverse=True)[:10]
         
-        # Filter the annotations based on area
-        filtered_anns = [ann for ann in anns if ann['area'] > self.area_threshold]
-        sorted_anns = sorted(filtered_anns, key=(lambda x: x['area']), reverse=True)[:10]
+        img = np.zeros((sorted_anns[0]['segmentation'].shape[0], sorted_anns[0]['segmentation'].shape[1],4))
+        new_masks = []
 
+        while sorted_anns:
+               bitwise_or = [cv2.bitwise_and(ann['segmentation'].astype(int),sorted_anns[0]['segmentation'].astype(int))for ann in sorted_anns]
+               any = np.array([np.any(a) for a in bitwise_or])
+               idx = np.where(any)[0]
+               areas = [sorted_anns[i]['area'] for i in idx]
+               largest = np.argmax(areas)
+               new_masks.append(sorted_anns[largest])
+               sorted_idx = np.sort(idx)[::-1]
+               for i in sorted_idx:
+                  del sorted_anns[i]
+#
         rank_dict = {}
-
+        sorted_anns = new_masks
         for i, ann in enumerate(sorted_anns, start=1):
             m = ann['segmentation']
-            y, x = np.where(m)
-
-            if len(y) > 0 and len(x) > 0:
-                # Compute the center of the mask
-                cY, cX = int(np.mean(y)), int(np.mean(x))
-
-                # Add the number at the center of the mask
-                cv2.putText(image, str(i), (cX, cY), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
-
-                # Return a dictionary with key:mask number and value:corresponding mask
-                rank_dict[str(i)] = m
+            color_mask = np.concatenate([np.random.random(3), [0.5]])
+            # Apply the mask to the image
+            img[m] = color_mask
+            labeled_image= ski.measure.label(m, connectivity=2, return_num=False)
+            object_features = ski.measure.regionprops(labeled_image)
+            largest_region = max(object_features, key=lambda x: x.area)
+            largest_mask = np.zeros_like(m)
+            largest_mask[labeled_image == largest_region ["label"]] = 1
+            # Convert mask to uint8 type for cv2.findContours
+            mask_uint8 = np.uint8(largest_mask* 255)  # Scale mask to 0-255 for OpenCV
+            # Find contours in the mask
+            contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)   
+            # Find the largest contour by area
+            largest_contour = max(contours, key=cv2.contourArea)
+        
+            filtered = [list(map(lambda x: x[0], largest_contour))]
+            pole_of_inaccessibility = polylabel.polylabel(filtered, precision=1.0)
+            cX, cY = pole_of_inaccessibility
+            cv2.putText(image,str(i),(int(cX), int(cY)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
+            rank_dict[str(i)]= m
 
         return rank_dict, image
 
@@ -155,6 +178,7 @@ class WayFastZero:
         cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
 
+
         # Resize the image
         cv_image = cv2.resize(cv_image, self.image_resolution)
 
@@ -166,7 +190,8 @@ class WayFastZero:
 
         # Add numbers to the masks
         rank_dict, image = self.add_numbers_to_masks(masks, cv_image)
-
+        cv2.imwrite("img.png",image)
+        
         # Convert the image to ros msg
         image_msg = Image()
         image_msg.header = image_msg.header
@@ -180,25 +205,24 @@ class WayFastZero:
         self.debug_pub.publish(image_msg)
 
         time_start = time.time()
-        # Query the GPT model
-        ranks = self.query_gpt(cv_image)
+        # Query the GPT model 
+        ranks = self.query_gpt("img.png")
         print(f"Time taken for GPT: {time.time() - time_start}")
 
         # Parse the ranks
-        ranked_list = list(map(int, ranks.split(',')))
+        ranked_list = list(map(float, ranks.split(',')))
 
         ranked_dict = {}
         for i, rank in enumerate(ranked_list):
-            ranked_dict[rank]= i+1
+            ranked_dict[i]= rank
 
         # Create a traversability image
         # Note: the zero value is reserved for non-annotated regions
         trav_img = np.zeros(image.shape[:2])
 
-        max_rank = max(ranked_dict.values())
         for i, key in ranked_dict.items():
             if str(i) in rank_dict:
-                trav_img[rank_dict[str(i)]] = key / max_rank
+                trav_img[rank_dict[str(i)]] = key
 
         # Convert the traversability image ros msg
         trav_img = np.uint8(trav_img * 255)
