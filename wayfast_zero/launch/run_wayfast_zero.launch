@@ -25,7 +25,7 @@
     </include>
 
     <!-- Start the traversability octomap node -->
-    <node pkg="traversability_bki" type="octomap_node" name="octomap_node" output="screen">
+    <node pkg="traversability_bki" type="octomap_node" name="octomap_node" output="log">
         <rosparam file="$(find traversability_bki)/config/traversability_bki.yaml" command="load" />
     </node>
 
@@ -40,7 +40,12 @@
     </node> -->
 
     <!-- Start the path planning node -->
-    <node pkg="kinodynamic_rrt" type="rrt_node" name="rrt_node" output="screen">
+    <!-- <node pkg="kinodynamic_rrt" type="rrt_node" name="rrt_node" output="screen">
         <rosparam file="$(find kinodynamic_rrt)/config/rrt_params.yaml" command="load" />
+    </node> -->
+
+    <!-- Start the MPPI controller node -->
+    <node pkg="traversability_mppi" type="traversability_mppi_node.py" name="traversability_mppi_node" output="screen" >
+        <rosparam file="$(find traversability_mppi)/config/mppi_params.yaml" command="load" />
     </node>
 </launch>
