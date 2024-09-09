@@ -8,8 +8,8 @@
 #include "bkiblock.h"
 #include "bkioctree_node.h"
 #include "point6f.h"
-#include "octomap_utils/traversability_point.h"
-#include "octomap_utils/trav_voxel_grid.h"
+#include "traversability_octomap/traversability_point.h"
+#include "traversability_octomap/trav_voxel_grid.h"
 
 namespace traversability_bki {
 

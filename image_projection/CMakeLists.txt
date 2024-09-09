@@ -22,7 +22,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_msgs
   tf
-  # octomap_utils
+  traversability_octomap
 )
 
 find_package(PCL REQUIRED)

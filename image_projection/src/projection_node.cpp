@@ -30,7 +30,7 @@
 #include <pcl/impl/point_types.hpp>
 #include <pcl/filters/statistical_outlier_removal.h>
 
-#include "octomap_utils/traversability_point.h"
+#include "traversability_octomap/traversability_point.h"
 
 // Using namespaces for convenience
 using namespace Eigen;
