@@ -9,8 +9,7 @@ An LLM-based Zero-Shot Traversability Prediction Method
 - PyTorch (Tested using Pytorch 2.2.2) 
 
 ## Setup
-- Install the ROS dependencies
-  In your ROS workspace, run
+- Install the ROS dependencies. In your ROS workspace, run
   ```shell
   rosdep install --from-paths src --ignore-src -r -y
   ```
