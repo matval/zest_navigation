@@ -1,13 +1,13 @@
 <!-- load_params.launch -->
 <launch>
     <!-- Use python virtualenv -->
-    <arg name="venv" value="$(find wayfast_zero)/../env/bin/python3" />
+    <arg name="venv" value="$(find llm_prediction)/../env/bin/python3" />
 
     <!-- Load the YAML file as ROS parameters -->
-    <rosparam file="$(find wayfast_zero)/config/config.yaml" command="load" />
+    <rosparam file="$(find llm_prediction)/config/config.yaml" command="load" />
 
     <!-- Start the prediction node -->
-    <!-- <node pkg="wayfast_zero" type="wayfast_zero.py" name="wayfast_zero" output="screen" launch-prefix = "$(arg venv)" /> -->
+    <!-- <node pkg="llm_prediction" type="llm_prediction.py" name="llm_prediction" output="screen" launch-prefix = "$(arg venv)" /> -->
 
     <!-- Start the mock prediction node -->
     <node pkg="octomap_utils" type="image_transform.py" name="trav_images" output="log"/>
@@ -25,8 +25,8 @@
     </include>
 
     <!-- Start the traversability octomap node -->
-    <node pkg="traversability_bki" type="octomap_node" name="octomap_node" output="log">
-        <rosparam file="$(find traversability_bki)/config/traversability_bki.yaml" command="load" />
+    <node pkg="traversability_octomap" type="octomap_node" name="octomap_node" output="log">
+        <rosparam file="$(find traversability_octomap)/config/traversability_octomap.yaml" command="load" />
     </node>
 
     <!--Start the LA3DM BGKL node -->

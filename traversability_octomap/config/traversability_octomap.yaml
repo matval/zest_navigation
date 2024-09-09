@@ -1,0 +1,39 @@
+# TraversabilityBKIOctoMap config
+
+# Prior settings
+mean_prior: 0.5       # Prior on traversability mean
+lambda_prior: 2.01    # Prior on traversability lambda
+beta_prior: 0.5       # Prior on traversability beta
+
+# Octree parameter
+resolution: 0.2       # Octree resolution (m)
+block_depth: 1        # Test-data octree depth (see Wang & Englot ICRA 2016)
+
+min_range: 1.0        # Sensor min range (m)
+max_range: 10.0       # Sensor max range (m)
+
+# Bounds on map height
+min_z: -5.0
+max_z: 5.0
+
+# Kernel parameters
+sf2: 2.0                # Actually sigma_0 in sparse kernel
+ell: 0.6                # Length scale of the sparse kernel
+
+# Sampling resolutions
+free_resolution: 3.25   # 6.5 for block depth 5, 3.25 for block depth 4, 13 for depth 6
+ds_resolution: 0.25     # Downsampling factor
+
+# Free/Occupied Thresholds
+free_thresh: 0.3
+occupied_thresh: 0.5
+
+# BGKL parameters
+prior_A: 0.5            # Positive class (occupied)
+prior_B: 0.5            # Negative class (unoccupied)
+var_thresh: 100.0       # Threshold on variance to distinguish known/unknown
+
+# Grid Map parameters
+confidence_level: 0.90  # Confidence level for CVaR
+min_z_grid: -2.0        # Min z for grid map
+max_z_grid: 2.0         # Max z for grid map

@@ -1,0 +1,13 @@
+# This file contains the parameters for the MPPI algorithm
+
+# ROS topic names
+cmd_topic: /terrasentia/cmd_vel
+odom_topic: /terrasentia/dlio/odom_node/odom
+goal_topic: /move_base_simple/goal
+map_topic: /grid_map
+
+# MPPI parameters
+horizon: 20
+num_samples: 1000
+delta_time: 0.4
+temperature: 1.0
