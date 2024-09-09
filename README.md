@@ -1,4 +1,4 @@
-# WayFAST Zero
+# ZeST Navigation
 An LLM-based Zero-Shot Traversability Prediction Method
 
 ## System requirements
@@ -9,10 +9,10 @@ An LLM-based Zero-Shot Traversability Prediction Method
 - PyTorch (Tested using Pytorch 2.2.2) 
 
 ## Setup
-- Install Octomap ROS
+- Install the ROS dependencies. In your ROS workspace, run
   ```shell
-    sudo apt install ros-noetic-octomap-ros
-    ```
+  rosdep install --from-paths src --ignore-src -r -y
+  ```
 
 - Create a file `api_key.txt` with your OpenAI API key at the root directory of this package.
 
