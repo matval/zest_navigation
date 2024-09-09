@@ -25,11 +25,10 @@ find_package(catkin REQUIRED COMPONENTS
     pcl_ros
     roscpp
     tf_conversions
-    octomap_utils
+    # octomap_utils
     tf2
     tf2_ros
     tf2_geometry_msgs
-    octomap_utils
     grid_map_ros
     grid_map_msgs
 )
