@@ -144,7 +144,7 @@ void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
 void OctomapNode::publishGridMap()
 {
     // Create the grid map with one layer named "traversability"
-    grid_map::GridMap map({"traversability", "known"});
+    grid_map::GridMap map({"traversability", "lambda"});
     map.setFrameId(frame_id_);
     traversability_bki::point3f lim_min, lim_max;
     map_->get_bbox(lim_min, lim_max);

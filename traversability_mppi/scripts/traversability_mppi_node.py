@@ -32,7 +32,7 @@ class TRAVERSABILITY_MPPI_NODE:
         num_samples = rospy.get_param('~num_samples', 1000)
         gamma = rospy.get_param('~temperature', 1.0)
         noise_mu = rospy.get_param('~noise_mu', [0.0, 0.0])
-        noise_sigma = rospy.get_param('~noise_sigma', [0.2, 1.0])
+        noise_sigma = rospy.get_param('~noise_sigma', [0.4, 1.0])
         u_min = rospy.get_param('~u_min', [-1.0, -3.0])
         u_max = rospy.get_param('~u_max', [1.0, 3.0])
         self.reference_speed = rospy.get_param('~reference_speed', 0.6)
@@ -59,9 +59,9 @@ class TRAVERSABILITY_MPPI_NODE:
             u_min       = u_min,
             u_max       = u_max,
             Q           = [1.0, 1.0, 0.5],
-            Qf          = [2.0, 2.0, 1.0],
-            R           = [1.0, 1.0],
-            W           = [10.0, 0.001],
+            Qf          = [2.0, 2.0, 0.5],
+            R           = [10.0, 0.1],
+            W           = [50.0, 0.001],
             robot_length= 0.4,
             robot_width = 0.3
         ).to(self.device)

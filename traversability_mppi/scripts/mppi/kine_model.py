@@ -62,7 +62,7 @@ class KINE_MODEL(nn.Module):
             # k4 = self.x_dot(st4, u, mu, nu)
 
             mu = torch.Tensor([1.0]).to(action.device)
-            nu = torch.Tensor([1.0]).to(action.device)
+            nu = torch.Tensor([0.4]).to(action.device)
 
             # pred_states[:,:,t+1] = st + (self.dt / 6) * (k1 + 2*k2 + 2*k3 + k4)
             pred_states[:,:,t+1] = st + self.x_dot(st, u, mu, nu) * self.dt
@@ -120,12 +120,14 @@ class KINE_MODEL(nn.Module):
 
         # Compute the map cost using the worst-case traversability
         travs, _ = torch.min(travs, dim=-2)
-        trav_cost = -travs @ self.W 
+        trav_cost = torch.exp(-travs) @ self.W
+        # trav_cost = -travs @ self.W
         trav_cost = torch.sum(trav_cost, dim=-1).view(B, K, T)
 
         print('states_cost max:', states_cost.max())
         print('states_cost_f max:', states_cost_f.max())
         print('action_cost max:', action_cost.max())
+        print('trav_cost max:', trav_cost.max())
         print('trav_cost min:', trav_cost.min())
 
         # Sum the costs

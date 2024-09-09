@@ -86,10 +86,9 @@ void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& in_pc2, c
     @param in_pc2: Incoming point cloud message
     @param in_image: Incoming image message
   */
-  cv_bridge::CvImagePtr cv_ptr, color_pcl;
+  cv_bridge::CvImagePtr cv_ptr;
   try{
       cv_ptr = cv_bridge::toCvCopy(in_image, sensor_msgs::image_encodings::MONO8);
-      color_pcl = cv_bridge::toCvCopy(in_image, sensor_msgs::image_encodings::MONO8);
   }
   catch (cv_bridge::Exception& e){
       ROS_ERROR("cv_bridge exception: %s", e.what());
