@@ -1,4 +1,4 @@
-# WayFAST Zero
+# ZeST Navigation
 An LLM-based Zero-Shot Traversability Prediction Method
 
 ## System requirements
