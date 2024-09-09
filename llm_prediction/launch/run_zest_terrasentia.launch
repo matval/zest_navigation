@@ -1,0 +1,36 @@
+<!-- load_params.launch -->
+<launch>
+    <!-- Use python virtualenv -->
+    <arg name="venv" value="$(find llm_prediction)/../env/bin/python3" />
+
+    <!-- Load the YAML file as ROS parameters -->
+    <rosparam file="$(find llm_prediction)/config/config.yaml" command="load" />
+
+    <!-- Start the prediction node -->
+    <!-- <node pkg="llm_prediction" type="llm_prediction.py" name="llm_prediction" output="screen" launch-prefix = "$(arg venv)" /> -->
+
+    <!-- Start the mock prediction node -->
+    <node pkg="octomap_utils" type="image_transform.py" name="trav_images" output="log"/>
+
+    <!-- Start WayFast for traversability prediction -->
+    <node pkg="octomap_utils" type="wayfast_node.py" name="wayfast" output="screen">
+        <param name="model_path" value="$(find octomap_utils)/checkpoints/best_wayfast.pth"/>
+    </node>
+
+    <!-- Start the camera to lidar projection node -->
+    <include file="$(find image_projection)/launch/vlp16OnImg_offline.launch">
+        <!-- <arg name="image_topic"      value="/terrasentia/front_mono/image_rect_gray/compressed"/> -->
+        <arg name="image_topic"      value="/terrasentia/traversability_map/compressed"/>
+        <arg name="pointcloud_topic" value="/terrasentia/velodyne_points"/>
+    </include>
+
+    <!-- Start the traversability octomap node -->
+    <node pkg="traversability_octomap" type="octomap_node" name="octomap_node" output="log">
+        <rosparam file="$(find traversability_octomap)/config/traversability_octomap.yaml" command="load" />
+    </node>
+
+    <!-- Start the MPPI controller node -->
+    <node pkg="traversability_mppi" type="traversability_mppi_node.py" name="traversability_mppi_node" output="screen" >
+        <rosparam file="$(find traversability_mppi)/config/mppi_params.yaml" command="load" />
+    </node>
+</launch>

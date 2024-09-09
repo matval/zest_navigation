@@ -25,7 +25,4 @@
     </group>
     
     <node pkg="image_projection" type="projection_node" name="projection_node" output="screen"/>
-
-    <!-- rviz- -->
-    <node type="rviz" name="rviz" pkg="rviz" args="-d $(find image_projection)/rviz/lidar_camera.rviz" />
 </launch>
