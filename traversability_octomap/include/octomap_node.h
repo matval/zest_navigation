@@ -81,6 +81,7 @@ private:
     float max_z_grid_ = 1.0;
     float confidence_level_ = 0.95;
     std::string frame_id_;
+    std::string pointcloud_topic_;
     std::string map_topic_;
     std::string grid_map_topic_;
 
