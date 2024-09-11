@@ -23,6 +23,14 @@ OctomapNode::OctomapNode()
     grid_map_pub_ = nh_.advertise<grid_map_msgs::GridMap>(grid_map_topic_, 1);
     point_cloud_sub_ = nh_.subscribe(pointcloud_topic_, 1, &OctomapNode::pointCloudCallback, this);
 
+    // Precompute the Student's t-distribution quantiles
+    std::vector<double> precomputed_quantiles;
+    for (double i = 1; i < 30; i+=0.5) {
+        boost::math::students_t dist(i);
+        precomputed_quantiles.push_back(boost::math::quantile(dist, confidence_level_));
+    }
+    quantile_interp_ = boost::math::cubic_b_spline<double>(precomputed_quantiles.begin(), precomputed_quantiles.end(), 1.0, 1.0);
+
     ROS_INFO("OctomapNode initialized, waiting for point cloud data...");
 }
 
@@ -299,17 +307,35 @@ void OctomapNode::publishGridMap()
 }
 
 double OctomapNode::calculateCVaR(double mu, double sigma, double nu, double alpha) {
-    // Create Student's t-distribution object
-    boost::math::students_t dist(nu);
-    
-    // Compute t_quantile
-    double t_quantile = boost::math::quantile(dist, alpha);
-    
-    // Evaluate PDF at t_quantile
-    double pdf_at_t = boost::math::pdf(dist, t_quantile);
-    
-    // Compute CVaR
-    double cvar = mu - sigma * (nu + t_quantile * t_quantile) * pdf_at_t / ((nu - 1.0) * (alpha));
+    double cvar;
+    // If nu is low, calculate CVaR using the Student's t-distribution
+    if (nu < 30) {
+        // Create Student's t-distribution object
+        boost::math::students_t dist(nu);
+        
+        // Compute t_quantile
+        // double t_quantile = boost::math::quantile(dist, alpha);
+        double t_quantile = quantile_interp_(nu);
+        
+        // Evaluate PDF at t_quantile
+        double pdf_at_t = boost::math::pdf(dist, t_quantile);
+        
+        // Compute CVaR
+        cvar = mu - sigma * (nu + t_quantile * t_quantile) / (nu - 1.0) * pdf_at_t / (alpha);
+    }
+    // If nu is high, approximate CVaR using normal distribution
+    else {
+        // Create Gaussian distribution object
+        boost::math::normal dist;
+
+        // Compute quantile
+        double g_quantile = boost::math::quantile(dist, alpha);
+
+        // Evaluate PDF at quantile
+        double pdf_at_t = boost::math::pdf(dist, g_quantile);
+        
+        cvar = mu - sigma * pdf_at_t / alpha;
+    }
 
     // std::cout << "mu: " << mu << ", CVaR: " << cvar  << ", t_quantile: " << t_quantile << ", pdf_at_t: " << pdf_at_t << ", nu: " << nu << std::endl;
     
