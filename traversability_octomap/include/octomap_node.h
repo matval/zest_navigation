@@ -80,12 +80,14 @@ private:
     float max_z_ = 3.0;
     float min_z_grid_ = -1.0;
     float max_z_grid_ = 1.0;
-    float confidence_level_ = 0.95;
+    float confidence_level_ = 0.95;     // Confidence level for the CVaR computation
+    float nu_threshold_ = 40.0;         // Degrees of freedom for the Student's t-distribution
     std::string frame_id_;
     std::string pointcloud_topic_;
     std::string map_topic_;
     std::string grid_map_topic_;
     boost::math::cubic_b_spline<double> quantile_interp_;
+    boost::math::cubic_b_spline<double> pdf_interp_;
 
     // Transformation and state variables
     tf2::Vector3 last_position_;
