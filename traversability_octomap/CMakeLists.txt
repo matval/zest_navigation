@@ -29,7 +29,6 @@ find_package(catkin REQUIRED COMPONENTS
     tf2
     tf2_ros
     tf2_geometry_msgs
-    octomap_utils
     grid_map_ros
     grid_map_msgs
 )

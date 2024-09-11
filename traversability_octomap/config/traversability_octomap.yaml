@@ -6,7 +6,7 @@ lambda_prior: 2.01    # Prior on traversability lambda
 beta_prior: 0.5       # Prior on traversability beta
 
 # Octree parameter
-resolution: 0.2       # Octree resolution (m)
+resolution: 0.25      # Octree resolution (m)
 block_depth: 1        # Test-data octree depth (see Wang & Englot ICRA 2016)
 
 min_range: 1.0        # Sensor min range (m)

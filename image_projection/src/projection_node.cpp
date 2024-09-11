@@ -45,24 +45,24 @@ typedef pcl::PointCloud<pcl::PointXYZI> PointCloud;
 ros::Publisher pc_pub;
 
 // Parameters for LIDAR and camera
-float maxlen = 100.0;       // Maximum distance of the LIDAR
-float minlen = 0.01;        // Minimum distance of the LIDAR
-float max_FOV = 3.0;        // Max Field of View of the camera in radians
-float min_FOV = 0.4;        // Min Field of View of the camera in radians
+double maxlen = 100.0;       // Maximum distance of the LIDAR
+double minlen = 0.01;        // Minimum distance of the LIDAR
+double max_FOV = 3.0;        // Max Field of View of the camera in radians
+double min_FOV = 0.4;        // Min Field of View of the camera in radians
 
 // Parameters for converting point cloud to image
-float angular_resolution_x = 0.5f;
-float angular_resolution_y = 2.1f;
-float max_angle_width = 360.0f;
-float max_angle_height = 180.0f;
-float z_max = 100.0f;
-float z_min = 100.0f;
+double angular_resolution_x = 0.5f;
+double angular_resolution_y = 2.1f;
+double max_angle_width = 360.0f;
+double max_angle_height = 180.0f;
+double z_max = 100.0f;
+double z_min = 100.0f;
 
-float max_depth = 100.0;
-float min_depth = 8.0;
+double max_depth = 100.0;
+double min_depth = 8.0;
 double max_var = 50.0; 
 
-float interpol_value = 20.0;
+double interpol_value = 20.0;
 
 // Flag to enable or disable point cloud filtering
 bool f_pc = true; 
@@ -86,10 +86,9 @@ void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& in_pc2, c
     @param in_pc2: Incoming point cloud message
     @param in_image: Incoming image message
   */
-  cv_bridge::CvImagePtr cv_ptr, color_pcl;
+  cv_bridge::CvImagePtr cv_ptr;
   try{
       cv_ptr = cv_bridge::toCvCopy(in_image, sensor_msgs::image_encodings::MONO8);
-      color_pcl = cv_bridge::toCvCopy(in_image, sensor_msgs::image_encodings::MONO8);
   }
   catch (cv_bridge::Exception& e){
       ROS_ERROR("cv_bridge exception: %s", e.what());
@@ -306,57 +305,55 @@ void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& in_pc2, c
 }
 
 int main(int argc, char** argv){
-  // Initialize ROS node
-  ros::init(argc, argv, "pontCloudOntImage");
-  ros::NodeHandle nh;  
+    // Initialize ROS node
+    ros::init(argc, argv, "projection_node");
+    ros::NodeHandle nh("~");
 
-  // Load parameters from ROS parameter server
-  nh.getParam("/maxlen", maxlen);
-  nh.getParam("/minlen", minlen);
-  nh.getParam("/max_ang_FOV", max_FOV);
-  nh.getParam("/min_ang_FOV", min_FOV);
-  nh.getParam("/pcTopic", pcTopic);
-  nh.getParam("/imgTopic", imgTopic);
-  nh.getParam("/max_var", max_var);  
-  nh.getParam("/filter_output_pc", f_pc);
+    // Load parameters from ROS parameter server
+    nh.param<double>("maxlen", maxlen, maxlen);
+    nh.param<double>("minlen", minlen, minlen);
+    nh.param<double>("max_ang_FOV", max_FOV, max_FOV);
+    nh.param<double>("min_ang_FOV", min_FOV, min_FOV);
+    nh.param<double>("max_var", max_var, max_var);
+    nh.param<double>("x_resolution", angular_resolution_x, angular_resolution_x);
+    nh.param<double>("y_interpolation", interpol_value, interpol_value);
+    nh.param<double>("ang_Y_resolution", angular_resolution_y, angular_resolution_y);
+    nh.param<bool>("filter_output_pc", f_pc, f_pc);
+    
+    nh.param<std::string>("image_topic", imgTopic, imgTopic);
+    nh.param<std::string>("pointcloud_topic", pcTopic, pcTopic);
+    
+    XmlRpc::XmlRpcValue param;
+    nh.getParam("tlc", param);
+    Tlc << (double) param[0],
+           (double) param[1],
+           (double) param[2];
 
-  nh.getParam("/x_resolution", angular_resolution_x);
-  nh.getParam("/y_interpolation", interpol_value);
+    nh.getParam("rlc", param);
 
-  nh.getParam("/ang_Y_resolution", angular_resolution_y);
-  
-  XmlRpc::XmlRpcValue param;
+    Rlc << (double)param[0], (double)param[1], (double)param[2],
+           (double)param[3], (double)param[4], (double)param[5],
+           (double)param[6], (double)param[7], (double)param[8];
 
-  nh.getParam("/matrix_file/tlc", param);
-  Tlc << (double)param[0]
-        ,(double)param[1]
-        ,(double)param[2];
+    nh.getParam("camera_matrix", param);
 
-  nh.getParam("/matrix_file/rlc", param);
+    Mc << (double)param[0], (double)param[1], (double)param[2], (double)param[3],
+          (double)param[4], (double)param[5], (double)param[6], (double)param[7],
+          (double)param[8], (double)param[9], (double)param[10], (double)param[11];
 
-  Rlc <<  (double)param[0], (double)param[1], (double)param[2],
-          (double)param[3], (double)param[4], (double)param[5],
-          (double)param[6], (double)param[7], (double)param[8];
+    // Subscribers for point cloud and image topics
+    message_filters::Subscriber<PointCloud2> pc_sub(nh, pcTopic, 1);
+    message_filters::Subscriber<CompressedImage> img_sub(nh, imgTopic, 1);
 
-  nh.getParam("/matrix_file/camera_matrix", param);
+    // Synchronize the two subscribers
+    typedef sync_policies::ApproximateTime<PointCloud2, CompressedImage> MySyncPolicy;
+    Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), pc_sub, img_sub);
+    sync.registerCallback(boost::bind(&callback, _1, _2));
+    rangeImage = boost::shared_ptr<pcl::RangeImageSpherical>(new pcl::RangeImageSpherical);
 
-  Mc << (double)param[0], (double)param[1], (double)param[2], (double)param[3],
-        (double)param[4], (double)param[5], (double)param[6], (double)param[7],
-        (double)param[8], (double)param[9], (double)param[10], (double)param[11];
+    // Publisher for the output point cloud
+    pc_pub = nh.advertise<PointCloud>("traversability_cloud", 1);  
 
-  // Subscribers for point cloud and image topics
-  message_filters::Subscriber<PointCloud2> pc_sub(nh, pcTopic, 1);
-  message_filters::Subscriber<CompressedImage> img_sub(nh, imgTopic, 1);
-
-  // Synchronize the two subscribers
-  typedef sync_policies::ApproximateTime<PointCloud2, CompressedImage> MySyncPolicy;
-  Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), pc_sub, img_sub);
-  sync.registerCallback(boost::bind(&callback, _1, _2));
-  rangeImage = boost::shared_ptr<pcl::RangeImageSpherical>(new pcl::RangeImageSpherical);
-
-  // Publisher for the output point cloud
-  pc_pub = nh.advertise<PointCloud>("traversability_cloud", 1);  
-
-  // Start ROS event loop
-  ros::spin();
+    // Start ROS event loop
+    ros::spin();
 }
