@@ -17,7 +17,7 @@ from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 import base64
 from openai import OpenAI
 
-class WayFastZero:
+class LLMPredictor:
     def __init__(self):
         # Parameters
         input_topic = rospy.get_param("input_topic", "/terrasentia/zed2/zed_node/left/image_rect_color/compressed")
@@ -29,11 +29,11 @@ class WayFastZero:
 
         # Load the SAM model
         if model_type == "vit_b":
-            sam_checkpoint = rospkg.RosPack().get_path('wayfast_zero') + "/checkpoint/sam_vit_b_01ec64.pth"
+            sam_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam_vit_b_01ec64.pth"
         elif model_type == "vit_l":
-            sam_checkpoint = rospkg.RosPack().get_path('wayfast_zero') + "/checkpoint/sam_vit_l_0b3195.pth"
+            sam_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam_vit_l_0b3195.pth"
         elif model_type == "vit_h":
-            sam_checkpoint = rospkg.RosPack().get_path('wayfast_zero') + "/checkpoint/sam_vit_h_4b8939.pth"
+            sam_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam_vit_h_4b8939.pth"
 
         device = "cuda"
 
@@ -55,7 +55,7 @@ class WayFastZero:
         )
 
         # Load the ChatGPT model
-        key_file = rospkg.RosPack().get_path('wayfast_zero') + '/api_key.txt'
+        key_file = rospkg.RosPack().get_path('llm_prediction') + '/api_key.txt'
         with open(key_file, 'r') as file:
              api_key = file.read().strip()
         self.client = OpenAI(api_key=api_key)
@@ -239,5 +239,5 @@ class WayFastZero:
         self.image_pub.publish(output_msg)
     
 if __name__ == '__main__':
-    rospy.init_node('wayfast_zero')
-    WayFastZero()
+    rospy.init_node('llm_prediction')
+    LLMPredictor()

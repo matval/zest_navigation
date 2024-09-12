@@ -10,7 +10,7 @@
         <rosparam file="$(find llm_prediction)/config/config.yaml" command="load" />
 
         <!-- Start the prediction node -->
-        <!-- <node pkg="llm_prediction" type="llm_prediction.py" name="llm_prediction" output="screen" launch-prefix = "$(arg venv)" /> -->
+        <node pkg="llm_prediction" type="llm_prediction.py" name="llm_prediction" output="screen" launch-prefix="$(arg venv)" />
 
         <!-- Start the mock prediction node -->
         <node pkg="octomap_utils" type="image_transform.py" name="trav_images" output="log"/>
