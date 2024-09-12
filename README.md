@@ -42,6 +42,10 @@ An LLM-based Zero-Shot Traversability Prediction Method
     ```shell
     pip3 install torch==2.2.2 torchvision
     ```
+- If running on a Jetson device, choose the Pytorch according to the JetPack
+    ```shell
+    pip3 install https://developer.download.nvidia.cn/compute/redist/jp/v512/pytorch/torch-2.1.0a0+41361538.nv23.06-cp38-cp38-linux_aarch64.whl
+    ```
 
 - Install the python requirements.
     ```shell
