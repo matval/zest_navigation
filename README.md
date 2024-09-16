@@ -1,12 +1,12 @@
 # ZeST Navigation
-An LLM-based Zero-Shot Traversability Prediction Method
+An LLM-based Zero-Shot Traversability Navigation Method
 
 ## System requirements
 - Linux (Tested on Ubuntu 20.04)
 - ROS Noetic
 - Python3 (Tested using Python 3.8) 
 - CUDA (Tested using CUDA 12.0)
-- PyTorch (Tested using Pytorch 2.2.2) 
+- PyTorch (Tested using Pytorch 2.1.0)
 
 ## Setup
 - Install the ROS dependencies. In your ROS workspace, run
@@ -40,12 +40,21 @@ An LLM-based Zero-Shot Traversability Prediction Method
 
 - Install Pytorch.
     ```shell
-    pip3 install torch==2.2.2 torchvision
+    pip3 install torch==2.1.0 torchvision
     ```
 - If running on a Jetson device, choose the Pytorch according to the JetPack
     ```shell
     pip3 install https://developer.download.nvidia.cn/compute/redist/jp/v512/pytorch/torch-2.1.0a0+41361538.nv23.06-cp38-cp38-linux_aarch64.whl
     ```
+- If running on a Jetson device, install `torchvision` from source
+	```shell
+	sudo apt-get install libjpeg-dev zlib1g-dev libpython3-dev libopenblas-dev libavcodec-dev libavformat-dev libswscale-dev
+	git clone --branch <version> https://github.com/pytorch/vision torchvision
+	cd torchvision
+	export BUILD_VERSION=0.x.0  # where 0.x.0 is the torchvision version. For Pytorch 2.1.0, choose 0.16.1  
+	/home/companion/catkin_ws/src/zest_navigation/env/bin/python setup.py install
+	```
+	where `/home/companion/catkin_ws/src/zest_navigation/env/bin/python` is the Python interpreter from your virtualenv.
 
 - Install the python requirements.
     ```shell
@@ -53,7 +62,12 @@ An LLM-based Zero-Shot Traversability Prediction Method
     ```
 
 ## Running the package
-To use the traversability package, run
+To use the traversability package on your computer, run
 ```shell
-roslaunch wayfast_zero run_wayfast_zero.launch
+roslaunch llm_prediction run_zest_offline.launch
+```
+
+To use the traversability package on the Terrasentia, run
+```shell
+roslaunch llm_prediction run_zest_terrasentia.launch
 ```

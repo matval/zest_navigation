@@ -84,7 +84,7 @@ void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
     geometry_msgs::TransformStamped transformStamped;
 
     try {
-        transformStamped = tfBuffer_.lookupTransform(frame_id_, cloud->header.frame_id, cloud->header.stamp, ros::Duration(2.5));
+        transformStamped = tfBuffer_.lookupTransform(frame_id_, cloud->header.frame_id, cloud->header.stamp, ros::Duration(10));
     }
     catch (tf2::ConnectivityException &ex) {
         ROS_ERROR("ConnectivityException: %s", ex.what());
