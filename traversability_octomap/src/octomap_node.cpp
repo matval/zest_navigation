@@ -21,7 +21,7 @@ OctomapNode::OctomapNode()
 
     // Set up publishers and subscribers
     grid_map_pub_ = nh_.advertise<grid_map_msgs::GridMap>(grid_map_topic_, 1);
-    point_cloud_sub_ = nh_.subscribe(pointcloud_topic_, 5, &OctomapNode::pointCloudCallback, this);
+    point_cloud_sub_ = nh_.subscribe(pointcloud_topic_, 10, &OctomapNode::pointCloudCallback, this);
 
     // Precompute the Student's t-distribution quantiles
     int num_quantiles = 100;
@@ -84,7 +84,7 @@ void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
     geometry_msgs::TransformStamped transformStamped;
 
     try {
-        transformStamped = tfBuffer_.lookupTransform(frame_id_, cloud->header.frame_id, cloud->header.stamp, ros::Duration(10));
+        transformStamped = tfBuffer_.lookupTransform(frame_id_, cloud->header.frame_id, cloud->header.stamp, ros::Duration(30));
     }
     catch (tf2::ConnectivityException &ex) {
         ROS_ERROR("ConnectivityException: %s", ex.what());

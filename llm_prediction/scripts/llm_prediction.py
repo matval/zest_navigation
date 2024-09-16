@@ -181,6 +181,9 @@ class LLMPredictor:
         cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
 
+        # Get the original image resolution
+        original_resolution = cv_image.shape[:2]
+
         # Resize the image
         cv_image = cv2.resize(cv_image, self.image_resolution)
 
@@ -196,6 +199,10 @@ class LLMPredictor:
         cv2.imwrite("img.png",image)
         print(f"Time taken to add the numbers: {time.time() - time_start}")
 
+        # Resize the image to the original resolution
+        image = cv2.resize(image, (original_resolution[1], original_resolution[0]))
+
+        # Convert the image to a ROS message
         image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         _, im_encoded = cv2.imencode('.jpg', image_bgr)
 
@@ -205,12 +212,12 @@ class LLMPredictor:
         debug_msg.data = np.array(im_encoded).tobytes()
 
         # Publish the annotated image
-        self.debug_pub.publish(image_msg)
+        self.debug_pub.publish(debug_msg)
 
         time_start = time.time()
         # Query the GPT model 
         # ranks = self.query_gpt("img.png")
-        ranks = "0,0.5,1,0.5,0.5,1,0.5,0.5,1,0.5"
+        ranks = "0,0.1,1,0.7,0.8,1,0.5,0.2,1,0.5"
         print(f"Time taken for GPT: {time.time() - time_start}")
 
         # Parse the ranks
@@ -222,11 +229,14 @@ class LLMPredictor:
 
         # Create a traversability image
         # Note: the zero value is reserved for non-annotated regions
-        trav_img = np.zeros(image.shape[:2])
+        trav_img = np.zeros((self.image_resolution[1], self.image_resolution[0]))
 
         for i, key in ranked_dict.items():
             if str(i) in rank_dict:
                 trav_img[rank_dict[str(i)]] = key
+
+        # Resize the traversability image to the original resolution
+        trav_img = cv2.resize(trav_img, (original_resolution[1], original_resolution[0]))
 
         # Convert the traversability image ros msg
         trav_img = np.uint8(trav_img * 255)

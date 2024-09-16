@@ -41,15 +41,15 @@ class TRAVERSABILITY_NODE:
         params = Object()
         # Model parameters (input size 320x240)
         params.pretrained = False
-        params.input_size = (320, 240)
-        params.output_size = (320, 240)
+        params.input_size = (420, 240)
+        params.output_size = (420, 240)
         params.output_channels = 1
         params.bottleneck_dim = 256
         params.depth_mean = 1.295778
         params.depth_std = 3.441738
 
         self.input_size = params.input_size  
-        self.output_size = (640, 480) 
+        self.output_size = (640, 360) 
         self.depth_mean = params.depth_mean
         self.depth_std = params.depth_std
         
@@ -129,7 +129,7 @@ class TRAVERSABILITY_NODE:
         im[im < self.thres * 255] = 0
 
         # Resize output image to 640x480 for publishing
-        im_resized = cv2.resize(im, self.output_size, interpolation=cv2.INTER_LINEAR)
+        im_resized = cv2.resize(im, self.output_size, interpolation=cv2.INTER_AREA)
         
         _, im_encoded = cv2.imencode('.jpg', im_resized)
         msg = CompressedImage()

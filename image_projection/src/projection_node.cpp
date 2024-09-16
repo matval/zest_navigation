@@ -174,8 +174,8 @@ void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& in_pc2, c
     arma::mat Zout = ZI;
 
     // Filter interpolated elements based on variance and create a new range image
-    for (uint i = 0; i < ZI.n_rows; i += 1){       
-        for (uint j = 0; j < ZI.n_cols; j += 1){             
+    for (uint i = 0; i < ZI.n_rows; i += 1) {       
+        for (uint j = 0; j < ZI.n_cols; j += 1) {             
             if (ZI(i, j) == 0){
                 if (i + interpol_value < ZI.n_rows) {
                     for (int k = 1; k <= interpol_value; k += 1) {
@@ -192,63 +192,64 @@ void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& in_pc2, c
         }      
     }
 
-  if (f_pc){        
-    // Filter by variance
-    for (uint i = 0; i < ((ZI.n_rows - 1) / interpol_value); i += 1)       
-      for (uint j = 0; j < ZI.n_cols - 5; j += 1){
-        double average = 0;
-        double variance = 0;
-        for (uint k = 0; k < interpol_value; k += 1)
-          average += ZI((i * interpol_value) + k, j);
-        average /= interpol_value;    
-        for (uint l = 0; l < interpol_value; l++) 
-          variance += pow((ZI((i * interpol_value) + l, j) - average), 2.0);  
-        if (variance > max_var)
-          for (uint m = 0; m < interpol_value; m++) 
-            Zout((i * interpol_value) + m, j) = 0;                 
-      }   
-    ZI = Zout;
-  }
-
-  // Convert the range image back to a 3D point cloud
-  int num_pc = 0; 
-  for (uint i = 0; i < ZI.n_rows - interpol_value; i += 1){       
-    for (uint j = 0; j < ZI.n_cols; j += 1){
-      float ang = M_PI - ((2.0 * M_PI * j) / (ZI.n_cols));
-
-      if (ang < min_FOV - M_PI / 2.0 || ang > max_FOV - M_PI / 2.0) 
-        continue;
-
-      if (!(Zout(i, j) == 0)){  
-        float pc_module = Zout(i, j);
-        float pc_x = sqrt(pow(pc_module, 2) - pow(ZzI(i, j), 2)) * cos(ang);
-        float pc_y = sqrt(pow(pc_module, 2) - pow(ZzI(i, j), 2)) * sin(ang);
-
-        float ang_x_lidar = 0.6 * M_PI / 180.0;  
-
-        // Transformation matrix between lidar and range image
-        Eigen::MatrixXf Lidar_matrix(3, 3); 
-        Eigen::MatrixXf result(3, 1);
-        Lidar_matrix << cos(ang_x_lidar), 0, sin(ang_x_lidar),
-                        0, 1, 0,
-                        -sin(ang_x_lidar), 0, cos(ang_x_lidar);
-
-        result << pc_x,
-                  pc_y,
-                  ZzI(i, j);
-        
-        result = Lidar_matrix * result;  // Rotation for correction
-
-        point_cloud->points[num_pc].x = result(0);
-        point_cloud->points[num_pc].y = result(1);
-        point_cloud->points[num_pc].z = result(2);
-
-        cloud->push_back(point_cloud->points[num_pc]); 
-
-        num_pc++;
-      }
+    if (f_pc) {        
+        // Filter by variance
+        for (uint i = 0; i < ((ZI.n_rows - 1) / interpol_value); i += 1)       
+            for (uint j = 0; j < ZI.n_cols - 5; j += 1) {
+                double average = 0;
+                double variance = 0;
+                for (uint k = 0; k < interpol_value; k += 1)
+                average += ZI((i * interpol_value) + k, j);
+                average /= interpol_value;    
+                for (uint l = 0; l < interpol_value; l++) 
+                variance += pow((ZI((i * interpol_value) + l, j) - average), 2.0);  
+                if (variance > max_var)
+                for (uint m = 0; m < interpol_value; m++) 
+                    Zout((i * interpol_value) + m, j) = 0;                 
+            }
+            
+        ZI = Zout;
     }
-  }  
+
+    // Convert the range image back to a 3D point cloud
+    int num_pc = 0; 
+    for (uint i = 0; i < ZI.n_rows - interpol_value; i += 1) {       
+        for (uint j = 0; j < ZI.n_cols; j += 1) {
+            float ang = M_PI - ((2.0 * M_PI * j) / (ZI.n_cols));
+
+            if (ang < min_FOV - M_PI / 2.0 || ang > max_FOV - M_PI / 2.0) 
+                continue;
+
+            if (!(Zout(i, j) == 0)) {  
+                float pc_module = Zout(i, j);
+                float pc_x = sqrt(pow(pc_module, 2) - pow(ZzI(i, j), 2)) * cos(ang);
+                float pc_y = sqrt(pow(pc_module, 2) - pow(ZzI(i, j), 2)) * sin(ang);
+
+                float ang_x_lidar = 0.6 * M_PI / 180.0;  
+
+                // Transformation matrix between lidar and range image
+                Eigen::MatrixXf Lidar_matrix(3, 3); 
+                Eigen::MatrixXf result(3, 1);
+                Lidar_matrix << cos(ang_x_lidar), 0, sin(ang_x_lidar),
+                                0, 1, 0,
+                                -sin(ang_x_lidar), 0, cos(ang_x_lidar);
+
+                result << pc_x,
+                        pc_y,
+                        ZzI(i, j);
+                
+                result = Lidar_matrix * result;  // Rotation for correction
+
+                point_cloud->points[num_pc].x = result(0);
+                point_cloud->points[num_pc].y = result(1);
+                point_cloud->points[num_pc].z = result(2);
+
+                cloud->push_back(point_cloud->points[num_pc]); 
+
+                num_pc++;
+            }
+        }
+    }  
 
     // Prepare the point cloud for publishing
     PointCloud::Ptr P_out(new PointCloud);
@@ -359,7 +360,7 @@ int main(int argc, char** argv){
     rangeImage = boost::shared_ptr<pcl::RangeImageSpherical>(new pcl::RangeImageSpherical);
 
     // Publisher for the output point cloud
-    pc_pub = nh.advertise<PointCloud>("traversability_cloud", 1);  
+    pc_pub = nh.advertise<PointCloud>("traversability_cloud", 1);
 
     // Start ROS event loop
     ros::spin();

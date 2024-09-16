@@ -1,7 +1,7 @@
 <launch>
     <arg name="image_topic"         default="/terrasentia/front_mono/image_rect_gray/compressed" />
     <arg name="pointcloud_topic"    default="/terrasentia/velodyne_points" />
-
+    <arg name="params_file"         default="$(find image_projection)/cfg/llm_params.yaml" />
     
     
     <node pkg="image_projection" type="projection_node" name="projection_node" output="screen">
@@ -19,6 +19,6 @@
         <param name="filter_output_pc"  type="bool"     value="false" />
 
         <!-- Load intrinsic and extrinic matrices -->
-        <rosparam file="$(find image_projection)/cfg/wayfast_params.yaml" />
+        <rosparam file="$(arg params_file)" />
     </node>
 </launch>
