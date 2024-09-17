@@ -6,7 +6,7 @@ lambda_prior: 2.01    # Prior on traversability lambda
 beta_prior: 0.5       # Prior on traversability beta
 
 # Octree parameter
-resolution: 0.25      # Octree resolution (m)
+resolution: 0.2       # Octree resolution (m)
 block_depth: 1        # Test-data octree depth (see Wang & Englot ICRA 2016)
 
 min_range: 1.0        # Sensor min range (m)
@@ -26,7 +26,7 @@ ds_resolution: 0.25     # Downsampling factor
 
 # Free/Occupied Thresholds
 free_thresh: 0.3
-occupied_thresh: 0.5
+occupied_thresh: 0.7
 
 # BGKL parameters
 prior_A: 0.5            # Positive class (occupied)
@@ -35,5 +35,5 @@ var_thresh: 100.0       # Threshold on variance to distinguish known/unknown
 
 # Grid Map parameters
 confidence_level: 0.90  # Confidence level for CVaR
-min_z_grid: -2.0        # Min z for grid map
-max_z_grid: 2.0         # Max z for grid map
+min_z_grid: -1.0        # Min z for grid map
+max_z_grid:  1.0        # Max z for grid map

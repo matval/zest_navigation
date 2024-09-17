@@ -41,6 +41,7 @@ public:
 private:
     void initParameters();
     void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud);
+    void getCurrentRobotHeight(ros::Time stamp);
     void publishGridMap();
     double calculateCVaR(double mu, double sigma, double nu, double alpha);
 
@@ -95,6 +96,7 @@ private:
     bool first_ = true;
     double position_change_thresh_ = 0.1;
     double orientation_change_thresh_ = 0.2;
+    double robot_height_ = 0.0;
     bool updated_ = false;
 };
 
