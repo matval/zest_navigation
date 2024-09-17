@@ -1,5 +1,6 @@
 import cv2
 import time
+import torch
 import rospy
 import rospkg
 import numpy as np
@@ -17,25 +18,26 @@ from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 import base64
 from openai import OpenAI
 
-class WayFastZero:
+class LLMPredictor:
     def __init__(self):
         # Parameters
-        input_topic = rospy.get_param("input_topic", "/terrasentia/zed2/zed_node/left/image_rect_color/compressed")
-        output_topic = rospy.get_param("output_topic", "/traversability_map")
-        self.image_resolution = rospy.get_param('image_resolution', [336, 224])
-        self.area_threshold = rospy.get_param('area_threshold', 500)
-        self.test_mode = rospy.get_param('test_mode', True)
-        model_type = rospy.get_param('model_type', 'vit_b')
+        input_topic = rospy.get_param("~input_topic", "/terrasentia/zed2/zed_node/left/image_rect_color/compressed")
+        output_topic = rospy.get_param("~output_topic", "/traversability_map/compressed")
+        self.image_resolution = rospy.get_param('~image_resolution', [336, 224])
+        self.area_threshold = rospy.get_param('~area_threshold', 500)
+        self.test_mode = rospy.get_param('~test_mode', True)
+        model_type = rospy.get_param('~model_type', 'vit_b')
 
         # Load the SAM model
         if model_type == "vit_b":
-            sam_checkpoint = rospkg.RosPack().get_path('wayfast_zero') + "/checkpoint/sam_vit_b_01ec64.pth"
+            sam_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam_vit_b_01ec64.pth"
         elif model_type == "vit_l":
-            sam_checkpoint = rospkg.RosPack().get_path('wayfast_zero') + "/checkpoint/sam_vit_l_0b3195.pth"
+            sam_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam_vit_l_0b3195.pth"
         elif model_type == "vit_h":
-            sam_checkpoint = rospkg.RosPack().get_path('wayfast_zero') + "/checkpoint/sam_vit_h_4b8939.pth"
+            sam_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam_vit_h_4b8939.pth"
 
-        device = "cuda"
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"LLM prediction node using device: {device}")
 
         sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
         sam.to(device=device)
@@ -46,26 +48,26 @@ class WayFastZero:
             box_nms_thresh          = 0.7,
             crop_nms_thresh         = 0.7,
             crop_overlap_ratio      = 0.35,
-            points_per_side         = 32,
+            points_per_side         = 8,
             pred_iou_thresh         = 0.95,         # High confidence score
             stability_score_thresh  = 0.9,          # Compensate a bit on stability to capture big masks
             crop_n_layers           = 1,
-            crop_n_points_downscale_factor = 2,
+            crop_n_points_downscale_factor = 4,
             min_mask_region_area    = 500,          # Requires open-cv to run post-processing
         )
 
         # Load the ChatGPT model
-        key_file = rospkg.RosPack().get_path('wayfast_zero') + '/api_key.txt'
+        key_file = rospkg.RosPack().get_path('llm_prediction') + '/../api_key.txt'
         with open(key_file, 'r') as file:
              api_key = file.read().strip()
-        self.client = OpenAI(api_key=api_key)
+        # self.client = OpenAI(api_key=api_key)
 
         # Subscriber
         self.image_sub = rospy.Subscriber(input_topic, CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
 
         # Publisher
-        self.image_pub = rospy.Publisher(output_topic, Image, queue_size=1)
-        self.debug_pub = rospy.Publisher('numbered_image', Image, queue_size=1)
+        self.image_pub = rospy.Publisher(output_topic, CompressedImage, queue_size=1)
+        self.debug_pub = rospy.Publisher('numbered_image/compressed', CompressedImage, queue_size=1)
 
         rospy.spin()
 
@@ -122,6 +124,7 @@ class WayFastZero:
         # If there are no annotations, return
         if len(anns) == 0:
             return
+
         anns = [ann for ann in anns if ann['area'] > 500]
         sorted_anns = sorted(anns, key=(lambda x: x['area']), reverse=True)[:10]
         
@@ -129,15 +132,15 @@ class WayFastZero:
         new_masks = []
 
         while sorted_anns:
-               bitwise_or = [cv2.bitwise_and(ann['segmentation'].astype(int),sorted_anns[0]['segmentation'].astype(int))for ann in sorted_anns]
-               any = np.array([np.any(a) for a in bitwise_or])
-               idx = np.where(any)[0]
-               areas = [sorted_anns[i]['area'] for i in idx]
-               largest = np.argmax(areas)
-               new_masks.append(sorted_anns[largest])
-               sorted_idx = np.sort(idx)[::-1]
-               for i in sorted_idx:
-                  del sorted_anns[i]
+            bitwise_or = [cv2.bitwise_and(ann['segmentation'].astype(int),sorted_anns[0]['segmentation'].astype(int))for ann in sorted_anns]
+            any = np.array([np.any(a) for a in bitwise_or])
+            idx = np.where(any)[0]
+            areas = [sorted_anns[i]['area'] for i in idx]
+            largest = np.argmax(areas)
+            new_masks.append(sorted_anns[largest])
+            sorted_idx = np.sort(idx)[::-1]
+            for i in sorted_idx:
+                del sorted_anns[i]
 #
         rank_dict = {}
         sorted_anns = new_masks
@@ -178,6 +181,8 @@ class WayFastZero:
         cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
 
+        # Get the original image resolution
+        original_resolution = cv_image.shape[:2]
 
         # Resize the image
         cv_image = cv2.resize(cv_image, self.image_resolution)
@@ -188,25 +193,31 @@ class WayFastZero:
             masks = self.mask_generator.generate(cv_image)
         print(f"Time taken for SAM: {time.time() - time_start}")
 
+        time_start = time.time()
         # Add numbers to the masks
         rank_dict, image = self.add_numbers_to_masks(masks, cv_image)
         cv2.imwrite("img.png",image)
-        
-        # Convert the image to ros msg
-        image_msg = Image()
-        image_msg.header = image_msg.header
-        image_msg.encoding = 'rgb8'
-        image_msg.height = image.shape[0]
-        image_msg.width = image.shape[1]
-        image_msg.step = image.shape[1] * 3
-        image_msg.data = image.astype('uint8').flatten().tolist()
+        print(f"Time taken to add the numbers: {time.time() - time_start}")
+
+        # Resize the image to the original resolution
+        image = cv2.resize(image, (original_resolution[1], original_resolution[0]))
+
+        # Convert the image to a ROS message
+        image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        _, im_encoded = cv2.imencode('.jpg', image_bgr)
+
+        debug_msg = CompressedImage()
+        debug_msg.header = image_msg.header
+        debug_msg.format = "jpeg"
+        debug_msg.data = np.array(im_encoded).tobytes()
 
         # Publish the annotated image
-        self.debug_pub.publish(image_msg)
+        self.debug_pub.publish(debug_msg)
 
         time_start = time.time()
         # Query the GPT model 
-        ranks = self.query_gpt("img.png")
+        # ranks = self.query_gpt("img.png")
+        ranks = "0,0.1,1,0.7,0.8,1,0.5,0.2,1,0.5"
         print(f"Time taken for GPT: {time.time() - time_start}")
 
         # Parse the ranks
@@ -218,26 +229,28 @@ class WayFastZero:
 
         # Create a traversability image
         # Note: the zero value is reserved for non-annotated regions
-        trav_img = np.zeros(image.shape[:2])
+        trav_img = np.zeros((self.image_resolution[1], self.image_resolution[0]))
 
         for i, key in ranked_dict.items():
             if str(i) in rank_dict:
                 trav_img[rank_dict[str(i)]] = key
 
+        # Resize the traversability image to the original resolution
+        trav_img = cv2.resize(trav_img, (original_resolution[1], original_resolution[0]))
+
         # Convert the traversability image ros msg
         trav_img = np.uint8(trav_img * 255)
 
-        output_msg = Image()
+        _, im_encoded = cv2.imencode('.jpg', trav_img)
+        output_msg = CompressedImage()
         output_msg.header = image_msg.header
-        output_msg.encoding = 'mono8'
-        output_msg.height = trav_img.shape[0]
-        output_msg.width = trav_img.shape[1]
-        output_msg.step = trav_img.shape[1]
-        output_msg.data = trav_img.flatten().tolist()
+        # output_msg.header.stamp = rospy.Time.now()
+        output_msg.format = "jpeg"
+        output_msg.data = np.array(im_encoded).tobytes()
         
         # Publish the traversability image
         self.image_pub.publish(output_msg)
     
 if __name__ == '__main__':
-    rospy.init_node('wayfast_zero')
-    WayFastZero()
+    rospy.init_node('llm_prediction')
+    LLMPredictor()

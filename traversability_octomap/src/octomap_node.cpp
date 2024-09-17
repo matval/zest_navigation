@@ -21,15 +21,26 @@ OctomapNode::OctomapNode()
 
     // Set up publishers and subscribers
     grid_map_pub_ = nh_.advertise<grid_map_msgs::GridMap>(grid_map_topic_, 1);
-    point_cloud_sub_ = nh_.subscribe(pointcloud_topic_, 1, &OctomapNode::pointCloudCallback, this);
+    point_cloud_sub_ = nh_.subscribe(pointcloud_topic_, 10, &OctomapNode::pointCloudCallback, this);
 
     // Precompute the Student's t-distribution quantiles
+    int num_quantiles = 100;
     std::vector<double> precomputed_quantiles;
-    for (double i = 1; i < 30; i+=0.5) {
+    for (double i = 1; i <= nu_threshold_; i += nu_threshold_ / num_quantiles) {
         boost::math::students_t dist(i);
-        precomputed_quantiles.push_back(boost::math::quantile(dist, confidence_level_));
+        double t_quantile = boost::math::quantile(dist, confidence_level_);
+        precomputed_quantiles.push_back(t_quantile);
     }
     quantile_interp_ = boost::math::cubic_b_spline<double>(precomputed_quantiles.begin(), precomputed_quantiles.end(), 1.0, 1.0);
+
+    // Precompute the Student's t-distribution PDF values
+    std::vector<double> precomputed_pdf;
+    for (double i = 1; i <= nu_threshold_; i += nu_threshold_ / num_quantiles) {
+        boost::math::students_t dist(i);
+        double t_quantile = boost::math::quantile(dist, confidence_level_);
+        precomputed_pdf.push_back(boost::math::pdf(dist, t_quantile));
+    }
+    pdf_interp_ = boost::math::cubic_b_spline<double>(precomputed_pdf.begin(), precomputed_pdf.end(), 1.0, 1.0);
 
     ROS_INFO("OctomapNode initialized, waiting for point cloud data...");
 }
@@ -73,8 +84,13 @@ void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
     geometry_msgs::TransformStamped transformStamped;
 
     try {
-        transformStamped = tfBuffer_.lookupTransform(frame_id_, cloud->header.frame_id, cloud->header.stamp, ros::Duration(2.5));
-    } catch (tf2::TransformException &ex) {
+        transformStamped = tfBuffer_.lookupTransform(frame_id_, cloud->header.frame_id, cloud->header.stamp, ros::Duration(30));
+    }
+    catch (tf2::ConnectivityException &ex) {
+        ROS_ERROR("ConnectivityException: %s", ex.what());
+        return;
+    }
+    catch (tf2::TransformException &ex) {
         ROS_ERROR("Transform failed: %s", ex.what());
         return;
     }
@@ -152,8 +168,6 @@ void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
 
 void OctomapNode::publishGridMap()
 {
-    ros::Time start = ros::Time::now();
-
     // Create the grid map with one layer named "traversability"
     grid_map::GridMap map({"traversability", "lambda"});
     map.setFrameId(frame_id_);
@@ -172,72 +186,7 @@ void OctomapNode::publishGridMap()
     // A map to store traversability values for each cell for CVaR computation
     std::unordered_map<grid_map::Index, std::vector<float>, std::hash<grid_map::Index>, std::equal_to<grid_map::Index>> NIG_values;
 
-    ROS_INFO_STREAM("Grid map setup takes " << (ros::Time::now() - start).toSec() << "s");
-
-    // // Iterate through the octomap and populate the grid map
-    // for (auto it = map_->begin_leaf(); it != map_->end_leaf(); ++it)
-    // {
-    //     if (it.get_node().get_state() == traversability_bki::State::OCCUPIED)
-    //     {
-    //         traversability_bki::point3f p = it.get_loc();
-    //         grid_map::Position position(static_cast<double>(p.x()), static_cast<double>(p.y()));
-    //         if (map.isInside(position) && p.z() >= min_z_grid_ && p.z() <= max_z_grid_)
-    //         {
-    //             grid_map::Index index;
-    //             map.getIndex(position, index);
-
-    //             // Get the mean of the node
-    //             float mean = it.get_node().get_mean();
-
-    //             // Get the lambda of the node
-    //             float lambda = it.get_node().get_lambda();
-
-    //             // Get the beta of the node
-    //             float beta = it.get_node().get_beta();
-
-    //             // Check if the cell is already in the map
-    //             if (NIG_values.find(index) != NIG_values.end())
-    //             {
-    //                 // Get the current mean
-    //                 float curr_mean = NIG_values[index][0];
-    //                 float curr_lambda = NIG_values[index][1];
-    //                 float curr_beta = NIG_values[index][2];
-
-    //                 // Get the update parameters
-    //                 float new_beta = curr_beta + 0.5f * curr_lambda * lambda * (mean - curr_mean) * (mean - curr_mean) / (curr_lambda + lambda);
-    //                 float new_mean = (curr_lambda * curr_mean + lambda * mean) / (curr_lambda + lambda);
-    //                 float new_lambda = curr_lambda + lambda;
-
-    //                 // Add the traversability value to the list for the cell
-    //                 NIG_values[index] = {new_mean, new_lambda, new_beta};
-    //             }
-    //             // If the cell is not in the map, add without update
-    //             else
-    //             {
-    //                 // Add the NIG distribution to the hashmap
-    //                 NIG_values[index] = {mean, lambda, beta};
-    //             }
-    //         }
-    //     }
-    // }
-
-    // // Now update each cell using the softmin of its traversability values
-    // for (const auto& item : NIG_values)
-    // {
-    //     const auto& index = item.first;
-    //     const auto& values = item.second;
-    //     double mu = values[0];
-    //     double lambda = values[1];
-    //     double beta = values[2];
-
-    //     double sigma = sqrt(2 * beta / lambda);
-
-    //     // Update the grid map with the CVaR value
-    //     map.at("traversability", index) = calculateCVaR(mu, sigma, lambda, confidence_level_);
-    //     map.at("lambda", index) = lambda;
-    // }
-
-    start = ros::Time::now();
+    ros::Time start = ros::Time::now();
     // Iterate through the octomap and populate the grid map
     for (auto it = map_->begin_leaf(); it != map_->end_leaf(); ++it)
     {
@@ -283,9 +232,8 @@ void OctomapNode::publishGridMap()
             }
         }
     }
-    ROS_INFO_STREAM("Grid map first loop takes " << (ros::Time::now() - start).toSec() << "s");
+    ROS_INFO_STREAM("Grid map CVaR loop takes " << (ros::Time::now() - start).toSec() << "s");
 
-    start = ros::Time::now();
     // Now pass the hashmap values to the grid map
     for (const auto& item : NIG_values)
     {
@@ -298,7 +246,6 @@ void OctomapNode::publishGridMap()
         map.at("traversability", index) = cvar;
         map.at("lambda", index) = lambda;
     }
-    ROS_INFO_STREAM("Grid map second loop takes " << (ros::Time::now() - start).toSec() << "s");
 
     // Publish the grid map
     grid_map_msgs::GridMap message;
@@ -309,7 +256,7 @@ void OctomapNode::publishGridMap()
 double OctomapNode::calculateCVaR(double mu, double sigma, double nu, double alpha) {
     double cvar;
     // If nu is low, calculate CVaR using the Student's t-distribution
-    if (nu < 30) {
+    if (nu < nu_threshold_) {
         // Create Student's t-distribution object
         boost::math::students_t dist(nu);
         
@@ -318,7 +265,7 @@ double OctomapNode::calculateCVaR(double mu, double sigma, double nu, double alp
         double t_quantile = quantile_interp_(nu);
         
         // Evaluate PDF at t_quantile
-        double pdf_at_t = boost::math::pdf(dist, t_quantile);
+        double pdf_at_t = pdf_interp_(nu);
         
         // Compute CVaR
         cvar = mu - sigma * (nu + t_quantile * t_quantile) / (nu - 1.0) * pdf_at_t / (alpha);

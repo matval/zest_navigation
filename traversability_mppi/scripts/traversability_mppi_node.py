@@ -36,6 +36,8 @@ class TRAVERSABILITY_MPPI_NODE:
         u_min = rospy.get_param('~u_min', [-1.0, -3.0])
         u_max = rospy.get_param('~u_max', [1.0, 3.0])
         self.reference_speed = rospy.get_param('~reference_speed', 0.6)
+        robot_length = rospy.get_param('~robot_length', 0.5)
+        robot_width = rospy.get_param('~robot_width', 0.3)
 
         self.publish_rollouts = True
         
@@ -62,8 +64,8 @@ class TRAVERSABILITY_MPPI_NODE:
             Qf          = [2.0, 2.0, 0.5],
             R           = [10.0, 0.1],
             W           = [50.0, 0.001],
-            robot_length= 0.4,
-            robot_width = 0.3
+            robot_length= robot_length,
+            robot_width = robot_width
         ).to(self.device)
         self.mppi.eval()
 

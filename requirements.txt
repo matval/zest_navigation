@@ -3,3 +3,6 @@ opencv-python
 rospkg
 segment-anything
 openai
+scikit-image
+python-polylabel
+requests
