@@ -323,9 +323,9 @@ int main(int argc, char** argv){
     nh.param<double>("max_ang_FOV", max_FOV, max_FOV);
     nh.param<double>("min_ang_FOV", min_FOV, min_FOV);
     nh.param<double>("max_var", max_var, max_var);
-    nh.param<double>("x_resolution", angular_resolution_x, angular_resolution_x);
     nh.param<double>("y_interpolation", interpol_value, interpol_value);
-    nh.param<double>("ang_Y_resolution", angular_resolution_y, angular_resolution_y);
+    nh.param<double>("angular_resolution_x", angular_resolution_x, angular_resolution_x);
+    nh.param<double>("angular_resolution_y", angular_resolution_y, angular_resolution_y);
     nh.param<bool>("filter_output_pc", f_pc, f_pc);
     
     nh.param<std::string>("image_topic", imgTopic, imgTopic);
