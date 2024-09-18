@@ -4,11 +4,14 @@ static const float MIN_TRAVERSABILITY = 0.0;
 static const float MAX_TRAVERSABILITY = 1.0;
 
 OctomapNode::OctomapNode()
-    : nh_("~"),
-      tfListener_(tfBuffer_)
+    : nh_("~")
 {
     // Initialize parameters
     initParameters();
+
+    // Enable the dedicated thread for the tf buffer
+    tfBuffer_ = std::make_unique<tf2_ros::Buffer>();
+    tfListener_ = std::make_unique<tf2_ros::TransformListener>(*tfBuffer_);
 
     // Initialize map and publisher objects
     map_ = std::make_unique<traversability_bki::TraversabilityBKIOctoMap>(
@@ -47,7 +50,9 @@ OctomapNode::OctomapNode()
 
 void OctomapNode::spin()
 {
-    ros::spin();
+    // ros::spin();
+    ros::MultiThreadedSpinner spinner(2); // Use 2 threads
+    spinner.spin();
 }
 
 void OctomapNode::initParameters()
@@ -82,13 +87,8 @@ void OctomapNode::initParameters()
 void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud)
 {
     geometry_msgs::TransformStamped transformStamped;
-
     try {
-        transformStamped = tfBuffer_.lookupTransform(frame_id_, cloud->header.frame_id, cloud->header.stamp, ros::Duration(30));
-    }
-    catch (tf2::ConnectivityException &ex) {
-        ROS_ERROR("ConnectivityException: %s", ex.what());
-        return;
+        transformStamped = tfBuffer_->lookupTransform(frame_id_, cloud->header.frame_id, cloud->header.stamp, ros::Duration(1));
     }
     catch (tf2::TransformException &ex) {
         ROS_ERROR("Transform failed: %s", ex.what());
@@ -109,6 +109,8 @@ void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
         transformStamped.transform.rotation.w
     );
 
+    getCurrentRobotHeight();
+
     if (first_ || orientation.angleShortestPath(last_orientation_) > orientation_change_thresh_ || translation.distance(last_position_) > position_change_thresh_) 
     {
         ROS_INFO_STREAM("Cloud received");
@@ -118,14 +120,19 @@ void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
         origin = traversability_bki::point3f(translation.x(), translation.y(), translation.z());
 
         sensor_msgs::PointCloud2 cloud_map;
-        pcl_ros::transformPointCloud(frame_id_, *cloud, cloud_map, tfBuffer_);
+        try {
+            pcl_ros::transformPointCloud(frame_id_, *cloud, cloud_map, *tfBuffer_);
+        }
+        catch (tf2::TransformException &ex) {
+            ROS_ERROR("Point cloud transform failed: %s", ex.what());
+            return;
+        }
 
         //pointer required for downsampling
         traversability_bki::PCLPointCloud pcl_cloud;
         pcl::fromROSMsg(cloud_map, pcl_cloud);
 
-        if(pcl_cloud.size() > 5)
-        {
+        if(pcl_cloud.size() > 5) {
             map_->insert_pointcloud(pcl_cloud, origin, (float) ds_resolution_, (float) free_resolution_, (float) min_range_, (float) max_range_);
         }
 
@@ -166,6 +173,18 @@ void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
     }
 }
 
+void OctomapNode::getCurrentRobotHeight()
+{
+    geometry_msgs::TransformStamped transformStamped;
+    try {
+        transformStamped = tfBuffer_->lookupTransform(frame_id_, "base_link", ros::Time(0), ros::Duration(1));
+    } catch (tf2::TransformException &ex) {
+        ROS_WARN("Failed to get robot height: %s", ex.what());
+        return;
+    }
+    robot_height_ = transformStamped.transform.translation.z;
+}
+
 void OctomapNode::publishGridMap()
 {
     // Create the grid map with one layer named "traversability"
@@ -186,6 +205,9 @@ void OctomapNode::publishGridMap()
     // A map to store traversability values for each cell for CVaR computation
     std::unordered_map<grid_map::Index, std::vector<float>, std::hash<grid_map::Index>, std::equal_to<grid_map::Index>> NIG_values;
 
+    double adjusted_min_z = min_z_grid_ + robot_height_;
+    double adjusted_max_z = max_z_grid_ + robot_height_;
+
     ros::Time start = ros::Time::now();
     // Iterate through the octomap and populate the grid map
     for (auto it = map_->begin_leaf(); it != map_->end_leaf(); ++it)
@@ -194,7 +216,7 @@ void OctomapNode::publishGridMap()
         {
             traversability_bki::point3f p = it.get_loc();
             grid_map::Position position(static_cast<double>(p.x()), static_cast<double>(p.y()));
-            if (map.isInside(position) && p.z() >= min_z_grid_ && p.z() <= max_z_grid_)
+            if (map.isInside(position) && p.z() >= adjusted_min_z && p.z() <= adjusted_max_z)
             {
                 grid_map::Index index;
                 map.getIndex(position, index);
