@@ -4,11 +4,14 @@ static const float MIN_TRAVERSABILITY = 0.0;
 static const float MAX_TRAVERSABILITY = 1.0;
 
 OctomapNode::OctomapNode()
-    : nh_("~"),
-      tfListener_(tfBuffer_)
+    : nh_("~")
 {
     // Initialize parameters
     initParameters();
+
+    // Enable the dedicated thread for the tf buffer
+    tfBuffer_ = std::make_unique<tf2_ros::Buffer>();
+    tfListener_ = std::make_unique<tf2_ros::TransformListener>(*tfBuffer_);
 
     // Initialize map and publisher objects
     map_ = std::make_unique<traversability_bki::TraversabilityBKIOctoMap>(
@@ -47,7 +50,9 @@ OctomapNode::OctomapNode()
 
 void OctomapNode::spin()
 {
-    ros::spin();
+    // ros::spin();
+    ros::MultiThreadedSpinner spinner(2); // Use 2 threads
+    spinner.spin();
 }
 
 void OctomapNode::initParameters()
@@ -82,9 +87,8 @@ void OctomapNode::initParameters()
 void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud)
 {
     geometry_msgs::TransformStamped transformStamped;
-
     try {
-        transformStamped = tfBuffer_.lookupTransform(frame_id_, cloud->header.frame_id, cloud->header.stamp, ros::Duration(5));
+        transformStamped = tfBuffer_->lookupTransform(frame_id_, cloud->header.frame_id, cloud->header.stamp, ros::Duration(1));
     }
     catch (tf2::TransformException &ex) {
         ROS_ERROR("Transform failed: %s", ex.what());
@@ -105,7 +109,7 @@ void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
         transformStamped.transform.rotation.w
     );
 
-    getCurrentRobotHeight(cloud->header.stamp);
+    getCurrentRobotHeight();
 
     if (first_ || orientation.angleShortestPath(last_orientation_) > orientation_change_thresh_ || translation.distance(last_position_) > position_change_thresh_) 
     {
@@ -117,7 +121,7 @@ void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
 
         sensor_msgs::PointCloud2 cloud_map;
         try {
-            pcl_ros::transformPointCloud(frame_id_, *cloud, cloud_map, tfBuffer_);
+            pcl_ros::transformPointCloud(frame_id_, *cloud, cloud_map, *tfBuffer_);
         }
         catch (tf2::TransformException &ex) {
             ROS_ERROR("Point cloud transform failed: %s", ex.what());
@@ -128,8 +132,7 @@ void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
         traversability_bki::PCLPointCloud pcl_cloud;
         pcl::fromROSMsg(cloud_map, pcl_cloud);
 
-        if(pcl_cloud.size() > 5)
-        {
+        if(pcl_cloud.size() > 5) {
             map_->insert_pointcloud(pcl_cloud, origin, (float) ds_resolution_, (float) free_resolution_, (float) min_range_, (float) max_range_);
         }
 
@@ -170,11 +173,11 @@ void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
     }
 }
 
-void OctomapNode::getCurrentRobotHeight(ros::Time stamp)
+void OctomapNode::getCurrentRobotHeight()
 {
     geometry_msgs::TransformStamped transformStamped;
     try {
-        transformStamped = tfBuffer_.lookupTransform(frame_id_, "base_link", stamp, ros::Duration(5));
+        transformStamped = tfBuffer_->lookupTransform(frame_id_, "base_link", ros::Time(0), ros::Duration(1));
     } catch (tf2::TransformException &ex) {
         ROS_WARN("Failed to get robot height: %s", ex.what());
         return;

@@ -1,27 +1,31 @@
 <!-- load_params.launch -->
 <launch>
-    <!-- Use python virtualenv -->
-    <arg name="venv" value="$(find llm_prediction)/../env/bin/python3" />
+    <param name="/use_sim_time" value="true"/>
 
     <group ns="terrasentia">
-        <!-- Load the YAML file as ROS parameters -->
-        <rosparam file="$(find llm_prediction)/config/config.yaml" command="load" />
+        <!-- Use python virtualenv -->
+        <arg name="venv" value="$(find llm_prediction)/../env/bin/python3" />        
 
         <!-- Start the prediction node -->
-        <!-- <node pkg="llm_prediction" type="llm_prediction.py" name="llm_prediction" output="screen" launch-prefix = "$(arg venv)" /> -->
+        <node pkg="llm_prediction" type="llm_prediction.py" name="llm_prediction" output="screen" launch-prefix="$(arg venv)" >
+            <rosparam file="$(find llm_prediction)/config/config.yaml" command="load" />
+            <param name="input_topic" value="/terrasentia/zed2/zed_node/rgb/image_rect_color/compressed"/>
+            <param name="output_topic" value="/terrasentia/traversability_map/compressed"/>
+        </node>
 
         <!-- Start the mock prediction node -->
-        <node pkg="octomap_utils" type="image_transform.py" name="trav_images" output="log"/>
+        <!-- <node pkg="octomap_utils" type="image_transform.py" name="trav_images" output="log"/> -->
 
         <!-- Start WayFast for traversability prediction -->
-        <node pkg="octomap_utils" type="wayfast_node.py" name="wayfast" output="screen">
+        <!-- <node pkg="octomap_utils" type="wayfast_node.py" name="wayfast" output="screen">
             <param name="model_path" value="$(find octomap_utils)/checkpoints/best_wayfast.pth"/>
-        </node>
+        </node> -->
 
         <!-- Start the camera to lidar projection node -->
         <include file="$(find image_projection)/launch/vlp16_projection.launch">
             <arg name="image_topic"      value="/terrasentia/traversability_map/compressed"/>
             <arg name="pointcloud_topic" value="/terrasentia/velodyne_points"/>
+            <arg name="params_file"      value="$(find image_projection)/cfg/llm_params.yaml"/>
         </include>
 
         <!-- Start the traversability octomap node -->

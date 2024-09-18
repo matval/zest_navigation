@@ -15,6 +15,9 @@
 #include <sensor_msgs/CompressedImage.h>
 #include <sensor_msgs/PointCloud2.h>
 
+#include <tf2_ros/transform_listener.h>
+#include <geometry_msgs/TransformStamped.h>
+
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/synchronizer.h>
@@ -72,13 +75,15 @@ std::string imgTopic = "/camera/color/image_raw";
 std::string pcTopic = "/velodyne_points";
 
 // Matrices for LIDAR to camera calibration and camera intrinsics
-Eigen::MatrixXf Tlc(3,1); // Translation matrix lidar-camera
-Eigen::MatrixXf Rlc(3,3); // Rotation matrix lidar-camera
+// Eigen::MatrixXf Tlc(3,1); // Translation matrix lidar-camera
+// Eigen::MatrixXf Rlc(3,3); // Rotation matrix lidar-camera
 Eigen::MatrixXf Mc(3,4);  // Camera calibration matrix
 
 // Parameters for range image
 boost::shared_ptr<pcl::RangeImageSpherical> rangeImage;
 pcl::RangeImage::CoordinateFrame coordinate_frame = pcl::RangeImage::LASER_FRAME;
+
+tf2_ros::Buffer tfBuffer(ros::Duration(100));
 
 void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& in_pc2, const sensor_msgs::CompressedImageConstPtr& in_image){
     /*
@@ -254,13 +259,37 @@ void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& in_pc2, c
     // Prepare the point cloud for publishing
     PointCloud::Ptr P_out(new PointCloud);
     P_out = cloud;
+    
+    geometry_msgs::TransformStamped transformStamped;
+    try {
+        transformStamped = tfBuffer.lookupTransform(in_image->header.frame_id, in_pc2->header.frame_id, in_pc2->header.stamp, ros::Duration(5));
+    }
+    catch (tf2::TransformException &ex) {
+        ROS_WARN("Projection transform failed: %s", ex.what());
+        return;
+    }
+
+    // Extract rotation and translation
+    Eigen::Quaternionf q(
+        transformStamped.transform.rotation.w,
+        transformStamped.transform.rotation.x, 
+        transformStamped.transform.rotation.y,
+        transformStamped.transform.rotation.z
+    );
+
+    Eigen::MatrixXf Rlc(3, 3);
+    Rlc = q.toRotationMatrix();
+    
+    Eigen::MatrixXf Tlc(3,1);
+    Tlc << transformStamped.transform.translation.x,
+           transformStamped.transform.translation.y, 
+           transformStamped.transform.translation.z;
 
     // Transformation matrix from LIDAR to camera
     Eigen::MatrixXf RTlc(4, 4);
-    RTlc << Rlc(0), Rlc(3), Rlc(6), Tlc(0),
-            Rlc(1), Rlc(4), Rlc(7), Tlc(1),
-            Rlc(2), Rlc(5), Rlc(8), Tlc(2),
-            0, 0, 0, 1;
+    RTlc = Eigen::MatrixXf::Identity(4, 4);
+    RTlc.block(0, 0, 3, 3) = Rlc;
+    RTlc.block(0, 3, 3, 1) = Tlc;
 
     int size_inter_Lidar = (int)P_out->points.size();
 
@@ -272,28 +301,25 @@ void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& in_pc2, c
     unsigned int cols = cv_ptr->image.cols;
     unsigned int rows = cv_ptr->image.rows;
 
-    uint px_data = 0; uint py_data = 0;
-
     // Create a point cloud with traversability data
-    TraversabilityPoint point;
     pcl::PointCloud<TraversabilityPoint>::Ptr pc_trav(new pcl::PointCloud<TraversabilityPoint>);
-
-    for (int i = 0; i < size_inter_Lidar; i++){
-        pc_matrix(0, 0) = -P_out->points[i].y;   
-        pc_matrix(1, 0) = -P_out->points[i].z;   
-        pc_matrix(2, 0) =  P_out->points[i].x;  
+    for (int i = 0; i < size_inter_Lidar; i++) {
+        pc_matrix(0, 0) = P_out->points[i].x;
+        pc_matrix(1, 0) = P_out->points[i].y;
+        pc_matrix(2, 0) = P_out->points[i].z;
         pc_matrix(3, 0) = 1.0;
 
         Lidar_cam = Mc * (RTlc * pc_matrix);
 
-        px_data = (int)(Lidar_cam(0, 0) / Lidar_cam(2, 0));
-        py_data = (int)(Lidar_cam(1, 0) / Lidar_cam(2, 0));
+        uint px_data = (int) Lidar_cam(0, 0) / Lidar_cam(2, 0);
+        uint py_data = (int) Lidar_cam(1, 0) / Lidar_cam(2, 0);
         
         if (px_data < 0.0 || px_data >= cols || py_data < 0.0 || py_data >= rows)
             continue;
 
         uint8_t trav = cv_ptr->image.at<uint8_t>(py_data, px_data);
 
+        TraversabilityPoint point;
         point.x = P_out->points[i].x;
         point.y = P_out->points[i].y;
         point.z = P_out->points[i].z;
@@ -303,16 +329,22 @@ void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& in_pc2, c
         pc_trav->points.push_back(point);       
     }
 
+    // Convert the traversability point cloud to ROS message
+    // PointCloud2 out_pc2;
+    // pcl::toROSMsg(*pc_trav, out_pc2);
+    // out_pc2.header = in_pc2->header;
     pc_trav->is_dense = true;
     pc_trav->width = static_cast<uint32_t>(pc_trav->points.size());
     pc_trav->height = 1;
-    pc_trav->header.frame_id = "velodyne";
+    pc_trav->header.frame_id = in_pc2->header.frame_id;
+    pc_trav->header.stamp = in_pc2->header.stamp.toNSec() / 1e3;
 
     // Publish the traversability point cloud
+    // pc_pub.publish(out_pc2);
     pc_pub.publish(pc_trav);
 }
 
-int main(int argc, char** argv){
+int main(int argc, char** argv) {
     // Initialize ROS node
     ros::init(argc, argv, "projection_node");
     ros::NodeHandle nh("~");
@@ -332,16 +364,17 @@ int main(int argc, char** argv){
     nh.param<std::string>("pointcloud_topic", pcTopic, pcTopic);
     
     XmlRpc::XmlRpcValue param;
-    nh.getParam("tlc", param);
-    Tlc << (double) param[0],
-           (double) param[1],
-           (double) param[2];
 
-    nh.getParam("rlc", param);
+    // nh.getParam("tlc", param);
+    // Tlc << (double) param[0],
+    //        (double) param[1],
+    //        (double) param[2];
 
-    Rlc << (double)param[0], (double)param[1], (double)param[2],
-           (double)param[3], (double)param[4], (double)param[5],
-           (double)param[6], (double)param[7], (double)param[8];
+    // nh.getParam("rlc", param);
+
+    // Rlc << (double)param[0], (double)param[1], (double)param[2],
+    //        (double)param[3], (double)param[4], (double)param[5],
+    //        (double)param[6], (double)param[7], (double)param[8];
 
     nh.getParam("camera_matrix", param);
 
@@ -359,7 +392,10 @@ int main(int argc, char** argv){
     sync.registerCallback(boost::bind(&callback, _1, _2));
     rangeImage = boost::shared_ptr<pcl::RangeImageSpherical>(new pcl::RangeImageSpherical);
 
+    tf2_ros::TransformListener tfListener(tfBuffer);
+
     // Publisher for the output point cloud
+    // pc_pub = nh.advertise<PointCloud2>("traversability_cloud", 1);
     pc_pub = nh.advertise<PointCloud>("traversability_cloud", 1);
 
     // Start ROS event loop
