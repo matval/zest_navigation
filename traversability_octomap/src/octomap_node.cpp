@@ -24,7 +24,7 @@ OctomapNode::OctomapNode()
 
     // Set up publishers and subscribers
     grid_map_pub_ = nh_.advertise<grid_map_msgs::GridMap>(grid_map_topic_, 1);
-    point_cloud_sub_ = nh_.subscribe(pointcloud_topic_, 10, &OctomapNode::pointCloudCallback, this);
+    point_cloud_sub_ = nh_.subscribe(pointcloud_topic_, 1, &OctomapNode::pointCloudCallback, this);
 
     // Precompute the Student's t-distribution quantiles
     int num_quantiles = 100;
@@ -50,9 +50,7 @@ OctomapNode::OctomapNode()
 
 void OctomapNode::spin()
 {
-    // ros::spin();
-    ros::MultiThreadedSpinner spinner(2); // Use 2 threads
-    spinner.spin();
+    ros::spin();
 }
 
 void OctomapNode::initParameters()
@@ -88,7 +86,7 @@ void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
 {
     geometry_msgs::TransformStamped transformStamped;
     try {
-        transformStamped = tfBuffer_->lookupTransform(frame_id_, cloud->header.frame_id, cloud->header.stamp, ros::Duration(1));
+        transformStamped = tfBuffer_->lookupTransform(frame_id_, cloud->header.frame_id, cloud->header.stamp, ros::Duration(0.05));
     }
     catch (tf2::TransformException &ex) {
         ROS_ERROR("Transform failed: %s", ex.what());
@@ -177,7 +175,7 @@ void OctomapNode::getCurrentRobotHeight()
 {
     geometry_msgs::TransformStamped transformStamped;
     try {
-        transformStamped = tfBuffer_->lookupTransform(frame_id_, "base_link", ros::Time(0), ros::Duration(1));
+        transformStamped = tfBuffer_->lookupTransform(frame_id_, "base_link", ros::Time(0), ros::Duration(0.5));
     } catch (tf2::TransformException &ex) {
         ROS_WARN("Failed to get robot height: %s", ex.what());
         return;

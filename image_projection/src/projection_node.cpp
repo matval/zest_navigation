@@ -337,7 +337,7 @@ void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& in_pc2, c
     pc_trav->width = static_cast<uint32_t>(pc_trav->points.size());
     pc_trav->height = 1;
     pc_trav->header.frame_id = in_pc2->header.frame_id;
-    pc_trav->header.stamp = in_pc2->header.stamp.toNSec() / 1e3;
+    // pc_trav->header.stamp = in_pc2->header.stamp.toNSec() / 1e3;
 
     // Publish the traversability point cloud
     // pc_pub.publish(out_pc2);
