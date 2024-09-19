@@ -22,9 +22,14 @@ OctomapNode::OctomapNode()
     marker_pub_ = std::make_unique<traversability_bki::MarkerArrayPub>(
         nh_, map_topic_, resolution_, block_depth_, frame_id_);
 
-    // Set up publishers and subscribers
+    // Set up publishers
     grid_map_pub_ = nh_.advertise<grid_map_msgs::GridMap>(grid_map_topic_, 1);
-    point_cloud_sub_ = nh_.subscribe(pointcloud_topic_, 10, &OctomapNode::pointCloudCallback, this);
+
+    // Set up message filter subscriber
+    point_cloud_sub_.subscribe(nh_, pointcloud_topic_, 2);
+    odom_sub_.subscribe(nh_, odom_topic_, 1000);
+    sync_.reset(new Sync(MySyncPolicy(1000), point_cloud_sub_, odom_sub_));
+    sync_->registerCallback(boost::bind(&OctomapNode::callback, this, _1, _2));
 
     // Precompute the Student's t-distribution quantiles
     int num_quantiles = 100;
@@ -50,9 +55,7 @@ OctomapNode::OctomapNode()
 
 void OctomapNode::spin()
 {
-    // ros::spin();
-    ros::MultiThreadedSpinner spinner(2); // Use 2 threads
-    spinner.spin();
+    ros::spin();
 }
 
 void OctomapNode::initParameters()
@@ -80,36 +83,40 @@ void OctomapNode::initParameters()
     nh_.param<float>("confidence_level", confidence_level_, confidence_level_);
     nh_.param<std::string>("frame_id", frame_id_, std::string("odom"));
     nh_.param<std::string>("pointcloud_topic", pointcloud_topic_, std::string("traversability_cloud"));
+    nh_.param<std::string>("odom_topic", odom_topic_, std::string("odom"));
     nh_.param<std::string>("map_topic", map_topic_, std::string("traversability_cells"));
     nh_.param<std::string>("grid_map_topic", grid_map_topic_, std::string("traversability_map"));
 }
 
-void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud)
-{
-    geometry_msgs::TransformStamped transformStamped;
+void OctomapNode::callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& cloud, const nav_msgs::Odometry::ConstPtr& odom)
+{    
+    ros::Time start = ros::Time::now();
+
+    geometry_msgs::TransformStamped lidar_transform;
     try {
-        transformStamped = tfBuffer_->lookupTransform(frame_id_, cloud->header.frame_id, cloud->header.stamp, ros::Duration(1));
-    }
-    catch (tf2::TransformException &ex) {
-        ROS_ERROR("Transform failed: %s", ex.what());
+        lidar_transform = tfBuffer_->lookupTransform(odom->child_frame_id, cloud->header.frame_id, ros::Time(0), ros::Duration(5));
+    } catch (tf2::TransformException &ex) {
+        ROS_WARN("Failed to get cloud to base transform: %s", ex.what());
         return;
     }
 
-    ros::Time start = ros::Time::now();
-    traversability_bki::point3f origin;
-    tf2::Vector3 translation = tf2::Vector3(
-        transformStamped.transform.translation.x,
-        transformStamped.transform.translation.y,
-        transformStamped.transform.translation.z
-    );
-    tf2::Quaternion orientation = tf2::Quaternion(
-        transformStamped.transform.rotation.x,
-        transformStamped.transform.rotation.y,
-        transformStamped.transform.rotation.z,
-        transformStamped.transform.rotation.w
-    );
+    // Get the current robot height
+    robot_height_ = odom->pose.pose.position.z;
 
-    getCurrentRobotHeight();
+    // Calculate the transform from the cloud frame to the map frame
+    Eigen::Isometry3d cloud2map_transform, base2map_transform, lidar2base_transform;
+    tf2::fromMsg(odom->pose.pose, base2map_transform);
+    lidar2base_transform = tf2::transformToEigen(lidar_transform);
+    cloud2map_transform = base2map_transform * lidar2base_transform;
+
+    // Get the translation and orientation from the transform
+    tf2::Vector3 translation(
+        cloud2map_transform.translation()(0),
+        cloud2map_transform.translation()(1),
+        cloud2map_transform.translation()(2));
+    tf2::Quaternion orientation;
+    Eigen::Quaterniond eigen_quaternion(cloud2map_transform.rotation());
+    orientation = tf2::Quaternion(eigen_quaternion.x(), eigen_quaternion.y(), eigen_quaternion.z(), eigen_quaternion.w());
 
     if (first_ || orientation.angleShortestPath(last_orientation_) > orientation_change_thresh_ || translation.distance(last_position_) > position_change_thresh_) 
     {
@@ -117,16 +124,11 @@ void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
         
         last_position_ = translation;
         last_orientation_ = orientation;
-        origin = traversability_bki::point3f(translation.x(), translation.y(), translation.z());
+        traversability_bki::point3f origin = traversability_bki::point3f(translation.x(), translation.y(), translation.z());
 
+        // Transform the point cloud to the map frame
         sensor_msgs::PointCloud2 cloud_map;
-        try {
-            pcl_ros::transformPointCloud(frame_id_, *cloud, cloud_map, *tfBuffer_);
-        }
-        catch (tf2::TransformException &ex) {
-            ROS_ERROR("Point cloud transform failed: %s", ex.what());
-            return;
-        }
+        pcl_ros::transformPointCloud(cloud2map_transform.matrix().cast<float>(), *cloud, cloud_map);
 
         //pointer required for downsampling
         traversability_bki::PCLPointCloud pcl_cloud;
@@ -171,18 +173,6 @@ void OctomapNode::pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
         publishGridMap(); // Publish the grid map
         ROS_INFO_STREAM("Grid map published in " << (ros::Time::now() - start).toSec() << "s");
     }
-}
-
-void OctomapNode::getCurrentRobotHeight()
-{
-    geometry_msgs::TransformStamped transformStamped;
-    try {
-        transformStamped = tfBuffer_->lookupTransform(frame_id_, "base_link", ros::Time(0), ros::Duration(1));
-    } catch (tf2::TransformException &ex) {
-        ROS_WARN("Failed to get robot height: %s", ex.what());
-        return;
-    }
-    robot_height_ = transformStamped.transform.translation.z;
 }
 
 void OctomapNode::publishGridMap()

@@ -4,7 +4,11 @@
 #include <ros/ros.h>
 #include <tf2_ros/buffer.h>
 #include <pcl_ros/transforms.h>
+#include <tf2_eigen/tf2_eigen.h>
+#include <tf2/LinearMath/Transform.h>
 #include <tf2_ros/transform_listener.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/sync_policies/approximate_time.h>
 
 #include <grid_map_ros/grid_map_ros.hpp>
 #include <boost/math/distributions/students_t.hpp>
@@ -13,6 +17,7 @@
 #include "bkioctomap.h"
 #include "markerarray_pub.h"
 
+#include <nav_msgs/Odometry.h>
 #include <grid_map_msgs/GridMap.h>
 #include <geometry_msgs/TransformStamped.h>
 
@@ -40,8 +45,7 @@ public:
 
 private:
     void initParameters();
-    void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud);
-    void getCurrentRobotHeight();
+    void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& cloud, const nav_msgs::Odometry::ConstPtr& odom);
     void publishGridMap();
     double calculateCVaR(double mu, double sigma, double nu, double alpha);
 
@@ -52,9 +56,15 @@ private:
     std::shared_ptr<tf2_ros::TransformListener> tfListener_;
     std::unique_ptr<tf2_ros::Buffer> tfBuffer_;
 
-    // Publishers and subscribers
+    // Publishers
     ros::Publisher grid_map_pub_;
-    ros::Subscriber point_cloud_sub_;
+
+    // Message filter subscriber
+    message_filters::Subscriber<sensor_msgs::PointCloud2> point_cloud_sub_;
+    message_filters::Subscriber<nav_msgs::Odometry> odom_sub_;
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> MySyncPolicy;
+    typedef message_filters::Synchronizer<MySyncPolicy> Sync;
+    boost::shared_ptr<Sync> sync_;
 
     // Map and publisher pointers
     std::unique_ptr<traversability_bki::TraversabilityBKIOctoMap> map_;
@@ -85,6 +95,7 @@ private:
     float nu_threshold_ = 40.0;         // Degrees of freedom for the Student's t-distribution
     std::string frame_id_;
     std::string pointcloud_topic_;
+    std::string odom_topic_;
     std::string map_topic_;
     std::string grid_map_topic_;
     boost::math::cubic_b_spline<double> quantile_interp_;

@@ -1,17 +1,10 @@
-#include <iostream>
 #include <math.h>
-#include <chrono> 
+#include <iostream>
 #include <armadillo>
 
 #include <ros/ros.h>
-
 #include <cv_bridge/cv_bridge.h>
-#include <image_transport/image_transport.h>
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
 
-#include <sensor_msgs/Image.h>
 #include <sensor_msgs/CompressedImage.h>
 #include <sensor_msgs/PointCloud2.h>
 
@@ -19,19 +12,13 @@
 #include <geometry_msgs/TransformStamped.h>
 
 #include <message_filters/subscriber.h>
-#include <message_filters/time_synchronizer.h>
-#include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
 
-#include <pcl_ros/point_cloud.h>
-#include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_types.h>
+#include <pcl/filters/filter.h>
+#include <pcl_ros/point_cloud.h>
 #include <pcl/range_image/range_image.h>
 #include <pcl/range_image/range_image_spherical.h>
-#include <pcl/filters/filter.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/impl/point_types.hpp>
-#include <pcl/filters/statistical_outlier_removal.h>
 
 #include "octomap_utils/traversability_point.h"
 
@@ -74,9 +61,7 @@ bool f_pc = true;
 std::string imgTopic = "/camera/color/image_raw";
 std::string pcTopic = "/velodyne_points";
 
-// Matrices for LIDAR to camera calibration and camera intrinsics
-// Eigen::MatrixXf Tlc(3,1); // Translation matrix lidar-camera
-// Eigen::MatrixXf Rlc(3,3); // Rotation matrix lidar-camera
+// Matrix for camera intrinsics
 Eigen::MatrixXf Mc(3,4);  // Camera calibration matrix
 
 // Parameters for range image
@@ -329,18 +314,12 @@ void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& in_pc2, c
         pc_trav->points.push_back(point);       
     }
 
-    // Convert the traversability point cloud to ROS message
-    // PointCloud2 out_pc2;
-    // pcl::toROSMsg(*pc_trav, out_pc2);
-    // out_pc2.header = in_pc2->header;
+    // Publish the traversability point cloud
     pc_trav->is_dense = true;
     pc_trav->width = static_cast<uint32_t>(pc_trav->points.size());
     pc_trav->height = 1;
     pc_trav->header.frame_id = in_pc2->header.frame_id;
     pc_trav->header.stamp = in_pc2->header.stamp.toNSec() / 1e3;
-
-    // Publish the traversability point cloud
-    // pc_pub.publish(out_pc2);
     pc_pub.publish(pc_trav);
 }
 
@@ -365,17 +344,6 @@ int main(int argc, char** argv) {
     
     XmlRpc::XmlRpcValue param;
 
-    // nh.getParam("tlc", param);
-    // Tlc << (double) param[0],
-    //        (double) param[1],
-    //        (double) param[2];
-
-    // nh.getParam("rlc", param);
-
-    // Rlc << (double)param[0], (double)param[1], (double)param[2],
-    //        (double)param[3], (double)param[4], (double)param[5],
-    //        (double)param[6], (double)param[7], (double)param[8];
-
     nh.getParam("camera_matrix", param);
 
     Mc << (double)param[0], (double)param[1], (double)param[2], (double)param[3],
@@ -395,7 +363,6 @@ int main(int argc, char** argv) {
     tf2_ros::TransformListener tfListener(tfBuffer);
 
     // Publisher for the output point cloud
-    // pc_pub = nh.advertise<PointCloud2>("traversability_cloud", 1);
     pc_pub = nh.advertise<PointCloud>("traversability_cloud", 1);
 
     // Start ROS event loop

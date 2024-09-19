@@ -6,7 +6,7 @@
 
 using std::vector;
 
-#define DEBUG true;
+// #define DEBUG true;
 
 #ifdef DEBUG
 
