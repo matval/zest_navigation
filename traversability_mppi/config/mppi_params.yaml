@@ -3,7 +3,8 @@
 # ROS topic names
 cmd_topic: /terrasentia/cmd_vel
 odom_topic: /terrasentia/dlio/odom_node/odom
-goal_topic: /move_base_simple/goal
+# goal_topic: /move_base_simple/goal
+reference_topic: /terrasentia/rrt_node/planned_path
 map_topic: /terrasentia/octomap_node/traversability_map
 
 # MPPI parameters

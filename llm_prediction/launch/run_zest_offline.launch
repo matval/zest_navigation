@@ -7,7 +7,7 @@
         <arg name="venv" value="$(find llm_prediction)/../env/bin/python3" />        
 
         <!-- Start the prediction node -->
-        <node pkg="llm_prediction" type="llm_prediction.py" name="llm_prediction" output="screen" launch-prefix="$(arg venv)" >
+        <node pkg="llm_prediction" type="llm_prediction.py" name="llm_prediction" output="log" launch-prefix="$(arg venv)" >
             <rosparam file="$(find llm_prediction)/config/config.yaml" command="load" />
             <param name="input_topic" value="/terrasentia/zed2/zed_node/rgb/image_rect_color/compressed"/>
             <param name="output_topic" value="/terrasentia/traversability_map/compressed"/>
@@ -29,7 +29,7 @@
         </include>
 
         <!-- Start the traversability octomap node -->
-        <node pkg="traversability_octomap" type="octomap_node" name="octomap_node" output="screen">
+        <node pkg="traversability_octomap" type="octomap_node" name="octomap_node" output="log">
             <rosparam file="$(find traversability_octomap)/config/traversability_octomap.yaml" command="load" />
             <param name="pointcloud_topic"  value="/terrasentia/projection_node/traversability_cloud"/>
             <param name="odom_topic"        value="/terrasentia/dlio/odom_node/odom"/>
@@ -46,9 +46,9 @@
         </node> -->
 
         <!-- Start the path planning node -->
-        <!-- <node pkg="kinodynamic_rrt" type="rrt_node" name="rrt_node" output="screen">
-            <rosparam file="$(find kinodynamic_rrt)/config/rrt_params.yaml" command="load" />
-        </node> -->
+        <node pkg="rrt_star" type="rrt_node" name="rrt_node" output="log">
+            <rosparam file="$(find rrt_star)/config/rrt_params.yaml" command="load" />
+        </node>
 
         <!-- Start the MPPI controller node -->
         <node pkg="traversability_mppi" type="traversability_mppi_node.py" name="traversability_mppi_node" output="screen" >

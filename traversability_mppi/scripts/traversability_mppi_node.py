@@ -1,34 +1,31 @@
 #!/usr/bin/env python3
 import copy
-import time
 import torch
 import numpy as np
 
 import rospy
 
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
 from grid_map_msgs.msg import GridMap
 from sensor_msgs.msg import PointCloud2
 from nav_msgs.msg import Path, Odometry
-from visualization_msgs.msg import MarkerArray
 from geometry_msgs.msg import TwistStamped, PoseStamped
 
 from mppi.mppi import MPPI
-from mppi.utils import visualize_rollouts, mppi_path_msg
+from mppi.utils import visualize_rollouts, mppi_path_msg, generate_interpolated_reference
 
 class TRAVERSABILITY_MPPI_NODE:
     def __init__(self):
         # Define ROS topics
         cmd_topic       = rospy.get_param('~cmd_topic', 'cmd_vel')
         odom_topic      = rospy.get_param('~odom_topic', 'odom')
-        goal_topic      = rospy.get_param('~goal_topic', '/move_base_simple/goal')
+        # goal_topic      = rospy.get_param('~goal_topic', '/move_base_simple/goal')
+        reference_topic = rospy.get_param('~reference_topic', 'planned_path')
         map_topic       = rospy.get_param('~map_topic', 'grid_map')
         self.verbose    = rospy.get_param('~verbose', False)
 
         # Load configuration params
         self.N = rospy.get_param('~horizon', 20)
-        deltaT = rospy.get_param('~delta_time', 0.2)
+        self.dt = rospy.get_param('~delta_time', 0.2)
         num_samples = rospy.get_param('~num_samples', 1000)
         gamma = rospy.get_param('~temperature', 1.0)
         noise_mu = rospy.get_param('~noise_mu', [0.0, 0.0])
@@ -52,7 +49,7 @@ class TRAVERSABILITY_MPPI_NODE:
 
         # Create network object
         self.mppi = MPPI(
-            dt          = deltaT,
+            dt          = self.dt,
             N           = self.N,
             K           = num_samples,
             gamma       = gamma,
@@ -80,17 +77,18 @@ class TRAVERSABILITY_MPPI_NODE:
 
         # Subscribers
         rospy.Subscriber(odom_topic, Odometry, self.odom_callback, queue_size=1)
-        rospy.Subscriber(goal_topic, PoseStamped, self.reference_callback, queue_size=1)
+        # rospy.Subscriber(goal_topic, PoseStamped, self.reference_callback, queue_size=1)
+        rospy.Subscriber(reference_topic, Path, self.reference_callback, queue_size=1)
         rospy.Subscriber(map_topic, GridMap, self.traversability_callback, queue_size=1, buff_size=2**24)
 
         # Publishers
         self.pub_cmd = rospy.Publisher(cmd_topic, TwistStamped, queue_size=1)
-        self.pub_path = rospy.Publisher('/mppi_path', Path, queue_size=1)
+        self.pub_path = rospy.Publisher('mppi_path', Path, queue_size=1)
+        self.pub_ref = rospy.Publisher('mppi_reference', Path, queue_size=1)
         # self.pub_traversability_image = rospy.Publisher('/mppi_traversability_image_debug', Image, queue_size=1)
 
         # Publish rollouts
         if self.publish_rollouts:
-            # self.pub_rollouts = rospy.Publisher('mppi_rollouts', MarkerArray, queue_size=1)
             self.pub_rollouts = rospy.Publisher('mppi_rollouts', PointCloud2, queue_size=1)
 
         # Set loop rate
@@ -105,7 +103,7 @@ class TRAVERSABILITY_MPPI_NODE:
             return
 
         odom = copy.deepcopy(self.current_pose)
-        mpc_reference = copy.deepcopy(self.mpc_reference)
+        mpc_reference = self.update_reference()
         trav_map = copy.deepcopy(self.trav_map)
         grid_bounds = copy.deepcopy(self.grid_bounds)
 
@@ -166,6 +164,58 @@ class TRAVERSABILITY_MPPI_NODE:
             # Publish outputs
             self.pub_path.publish(mppi_out)
 
+    def update_reference(self):
+        path = copy.deepcopy(self.reference_path)
+
+        # Find the closest point on the path to the current position
+        distances = [np.hypot(px - self.current_pose['x'], py - self.current_pose['y']) for px, py in path]
+        closest_index = np.argmin(distances)
+
+        # Generate interpolated reference points
+        horizon_length = self.N * self.reference_speed * self.dt
+        x_ref_seq, y_ref_seq = generate_interpolated_reference(closest_index, path, horizon_length, self.N)
+
+        # Clear previous references and set new ones
+        mpc_reference = {}
+        mpc_reference['x'] = x_ref_seq
+        mpc_reference['y'] = y_ref_seq
+
+        # Calculate heading for each point
+        mpc_reference['theta'] = []
+        for t in range(self.N):
+            if t < self.N - 1:
+                dx = x_ref_seq[t + 1] - x_ref_seq[t]
+                dy = y_ref_seq[t + 1] - y_ref_seq[t]
+            else:
+                dx = x_ref_seq[t] - x_ref_seq[t - 1]
+                dy = y_ref_seq[t] - y_ref_seq[t - 1]
+
+            heading_ref = np.arctan2(dy, dx)
+
+            # Check if speed is negative and invert the heading to face forward
+            if self.reference_speed < 0:
+                heading_ref = (heading_ref + np.pi) % (2 * np.pi) - np.pi
+
+            mpc_reference['theta'].append(heading_ref)
+
+        # Set constant velocity and zero angular velocity for simplicity
+        mpc_reference['v'] = (np.ones(self.N) * self.reference_speed).tolist()
+        mpc_reference['omega'] = np.zeros(self.N).tolist()
+
+        # Publish reference path for debugging
+        ref_msg = Path()
+        ref_msg.header.frame_id = 'odom'
+        ref_msg.header.stamp = rospy.Time.now()
+        for x, y in zip(x_ref_seq, y_ref_seq):
+            pose = PoseStamped()
+            pose.pose.position.x = x
+            pose.pose.position.y = y
+            ref_msg.poses.append(pose)
+
+        self.pub_ref.publish(ref_msg)
+
+        return mpc_reference
+
     def odom_callback(self, msg):
         # Get yaw from quaternion
         q = msg.pose.pose.orientation
@@ -221,34 +271,48 @@ class TRAVERSABILITY_MPPI_NODE:
         # self.pub_traversability_image.publish(ros_image)
 
     def reference_callback(self, msg):
-        # First, let's prevent the MPC to run while we are preparing the reference
+        # Prevent MPC from running while preparing the reference
         self.ref_received = False
 
         if self.verbose:
-            print("Using reference as a single point tracking.")
+            print("Using reference as a sequence of points tracking.")
 
-        self.mpc_reference['x'].clear()
-        self.mpc_reference['y'].clear()
-        self.mpc_reference['theta'].clear()
-        self.mpc_reference['v'] = np.ones(self.N) * self.reference_speed
-        self.mpc_reference['omega'] = np.zeros(self.N)
-        
-        for t in range(self.N):
-            x_ref = msg.pose.position.x
-            y_ref = msg.pose.position.y
-            heading_ref = np.arctan2(y_ref, x_ref)
+        # Store the path
+        self.reference_path = [(pose.pose.position.x, pose.pose.position.y) for pose in msg.poses]
 
-            # Check if speed is negative and invert the heading to face forward
-            if self.mpc_reference['v'][t] < 0:
-                # Normalize angle to [-pi,pi)
-                heading_ref = (heading_ref + np.pi) % (2*np.pi) - np.pi
-
-            self.mpc_reference['x'].append(x_ref)
-            self.mpc_reference['y'].append(y_ref)
-            self.mpc_reference['theta'].append(heading_ref)
-
-        # Now MPC can run
+        # Allow MPC to run
         self.ref_received = True
+
+    ## Single point tracking
+    # def reference_callback(self, msg):
+    #     # First, let's prevent the MPC to run while we are preparing the reference
+    #     self.ref_received = False
+
+    #     if self.verbose:
+    #         print("Using reference as a single point tracking.")
+
+    #     self.mpc_reference['x'].clear()
+    #     self.mpc_reference['y'].clear()
+    #     self.mpc_reference['theta'].clear()
+    #     self.mpc_reference['v'] = np.ones(self.N) * self.reference_speed
+    #     self.mpc_reference['omega'] = np.zeros(self.N)
+        
+    #     for t in range(self.N):
+    #         x_ref = msg.pose.position.x
+    #         y_ref = msg.pose.position.y
+    #         heading_ref = np.arctan2(y_ref, x_ref)
+
+    #         # Check if speed is negative and invert the heading to face forward
+    #         if self.mpc_reference['v'][t] < 0:
+    #             # Normalize angle to [-pi,pi)
+    #             heading_ref = (heading_ref + np.pi) % (2*np.pi) - np.pi
+
+    #         self.mpc_reference['x'].append(x_ref)
+    #         self.mpc_reference['y'].append(y_ref)
+    #         self.mpc_reference['theta'].append(heading_ref)
+
+    #     # Now MPC can run
+    #     self.ref_received = True
 
 if __name__ == '__main__':
     rospy.init_node('traversability_mppi')
