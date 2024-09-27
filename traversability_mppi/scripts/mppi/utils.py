@@ -10,7 +10,7 @@ from std_msgs.msg import Header
 from sensor_msgs.msg import PointField
 from geometry_msgs.msg import PoseStamped
 
-def visualize_rollouts(rollouts, costs, frame_id="map"):
+def visualize_rollouts(rollouts, costs, height, frame_id="map"):
     # Header for the PointCloud2 message
     header = Header()
     header.frame_id = frame_id
@@ -39,7 +39,7 @@ def visualize_rollouts(rollouts, costs, frame_id="map"):
                   (rgba_colors[:, 0] * 255).astype(np.uint32) << 16)
 
     # Z-coordinate is zero since we're visualizing in 2D
-    z_coords = np.zeros_like(reshaped_rollouts[:, 0])
+    z_coords = np.ones_like(reshaped_rollouts[:, 0]) * height
 
     # Create a structured array with x, y, z, and rgb fields
     cloud_dtype = np.dtype([

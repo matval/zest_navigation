@@ -120,7 +120,7 @@ class TRAVERSABILITY_MPPI_NODE:
                 rospy.loginfo("TRAV-MPPI wps are not empty")
 
             # Convert odometry to tensor
-            odom = torch.tensor([
+            odom_tensor = torch.tensor([
                 odom['x'],
                 odom['y'],
                 odom['theta']], dtype=self.dtype, device=self.device).t().unsqueeze(0)
@@ -138,7 +138,7 @@ class TRAVERSABILITY_MPPI_NODE:
             # And run MPPI
             with torch.no_grad():
                 with torch.autocast(device_type='cuda', dtype=torch.float16):
-                    a_hat, trajs, pred_states, probs, travs = self.mppi(odom, reference, trav_map, grid_bounds)
+                    a_hat, trajs, pred_states, probs, travs = self.mppi(odom_tensor, reference, trav_map, grid_bounds)
 
             prediction = trajs[0].cpu().detach().numpy()
             rollouts = pred_states[0].cpu().detach().numpy()
@@ -156,7 +156,7 @@ class TRAVERSABILITY_MPPI_NODE:
             self.pub_cmd.publish(mpc_cmd)
 
             if self.publish_rollouts:
-                rollout_msg = visualize_rollouts(rollouts, travs[...,0], frame_id="odom")
+                rollout_msg = visualize_rollouts(rollouts, travs[...,0], odom['z'],frame_id="odom")
                 self.pub_rollouts.publish(rollout_msg)
 
             # Publish MPPI predicted output
@@ -225,6 +225,7 @@ class TRAVERSABILITY_MPPI_NODE:
         self.current_pose = {
             'x': msg.pose.pose.position.x,
             'y': msg.pose.pose.position.y,
+            'z': msg.pose.pose.position.z,
             'theta': theta
         }
 

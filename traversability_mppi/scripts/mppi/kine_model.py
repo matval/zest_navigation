@@ -80,8 +80,8 @@ class KINE_MODEL(nn.Module):
 
         # Calculate states-reference cost
         states_error = (pred_states - reference[...,:3])
-        dist = (states_error[...,:1,0,None]**2 + states_error[...,:1,1,None]**2)**0.5
-        states_error[...,:2] = states_error[...,:2]/(dist + self.eps)
+        # dist = (states_error[...,:1,0,None]**2 + states_error[...,:1,1,None]**2)**0.5
+        states_error[...,:2] = states_error[...,:2] #/(dist + self.eps)
 
         # We need to correct for heading error [-pi,pi)
         states_error[...,2] = (states_error[...,2] + np.pi) % (2*np.pi) - np.pi
@@ -120,8 +120,8 @@ class KINE_MODEL(nn.Module):
 
         # Compute the map cost using the worst-case traversability
         travs, _ = torch.min(travs, dim=-2)
-        trav_cost = torch.exp(-travs) @ self.W
-        # trav_cost = -travs @ self.W
+        # trav_cost = torch.exp(-travs) @ self.W
+        trav_cost = -travs @ self.W
         trav_cost = torch.sum(trav_cost, dim=-1).view(B, K, T)
 
         print('states_cost max:', states_cost.max())
