@@ -156,11 +156,11 @@ class TRAVERSABILITY_MPPI_NODE:
             self.pub_cmd.publish(mpc_cmd)
 
             if self.publish_rollouts:
-                rollout_msg = visualize_rollouts(rollouts, travs[...,0], odom['z'],frame_id="odom")
+                rollout_msg = visualize_rollouts(rollouts, travs[...,0], odom['z'], frame_id="odom")
                 self.pub_rollouts.publish(rollout_msg)
 
             # Publish MPPI predicted output
-            mppi_out = mppi_path_msg(prediction, frame_id="odom")
+            mppi_out = mppi_path_msg(prediction, odom['z'], frame_id="odom")
             # Publish outputs
             self.pub_path.publish(mppi_out)
 

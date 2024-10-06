@@ -60,7 +60,7 @@ def visualize_rollouts(rollouts, costs, height, frame_id="map"):
 
     return pointcloud
 
-def mppi_path_msg(prediction, frame_id='map'):
+def mppi_path_msg(prediction, height, frame_id='map'):
     # Create a Path message
     mppi_out = Path()
     mppi_out.header.frame_id = frame_id  # Set the frame for the Path message
@@ -75,7 +75,7 @@ def mppi_path_msg(prediction, frame_id='map'):
         # Set the position (x, y)
         pose_stamped.pose.position.x = prediction[i, 0]
         pose_stamped.pose.position.y = prediction[i, 1]
-        pose_stamped.pose.position.z = 0.0  # Assuming 2D plane, z is 0
+        pose_stamped.pose.position.z = height
 
         # Convert the heading (yaw) to quaternion for the orientation
         yaw = prediction[i, 2]  # Assuming prediction[i, 2] contains the heading angle (yaw)
