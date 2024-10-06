@@ -60,7 +60,7 @@ class LLMPredictor:
         key_file = rospkg.RosPack().get_path('llm_prediction') + '/../api_key.txt'
         with open(key_file, 'r') as file:
              api_key = file.read().strip()
-        # self.client = OpenAI(api_key=api_key)
+        self.client = OpenAI(api_key=api_key)
 
         # Subscriber
         self.image_sub = rospy.Subscriber(input_topic, CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
@@ -92,9 +92,13 @@ class LLMPredictor:
                 {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "In the image analyze the numbered regions and assign a traversability value for a robot between 0 and 1 \
-        where 0 represents  untravarsable areas or obstacles and dangerous areas like trees, cars etc and 1 represents traversable areas like roads.\
-        Consider terrain and general navigability with ground robots in mind. Output should be the traversavbility values from region 1 to n without the reasoning, for example 0,0.5,1,..."},
+                    {
+                        "type": "text", "text": "In the image, analyze the numbered regions and assign traversability values for each region. \
+                        The traversability values should be real numbers where 0 represents low traversability and 1 represents high traversability. \
+                        For example, traversability 0.0 represents obstacles and dangerous areas like trees, cars, and etc. \
+                        Traversability 1.0 represents highly traversable areas like roads and flat terrains. \
+                        Assume the image comes from a small wheeled robot. \
+                        The output should be the traversavbility values from region 1 to n without the reasoning, for example 0,0.5,1,..."},
                     {
                     "type": "image_url",
                     "image_url": {
@@ -216,8 +220,9 @@ class LLMPredictor:
 
         time_start = time.time()
         # Query the GPT model 
-        # ranks = self.query_gpt("img.png")
-        ranks = "0,0.1,1,0.7,0.8,1,0.5,0.2,1,0.5"
+        ranks = self.query_gpt("img.png")
+        # ranks = "0,0.1,1,0.7,0.8,1,0.5,0.2,1,0.5"
+        print('Ranks:', ranks)
         print(f"Time taken for GPT: {time.time() - time_start}")
 
         # Parse the ranks
