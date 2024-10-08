@@ -1,3 +1,4 @@
+import re
 import cv2
 import time
 import torch
@@ -232,21 +233,23 @@ class LLMPredictor:
         print(f"Time taken for GPT: {time.time() - time_start}")
 
         # Parse the ranks
-        ranked_list = list(map(float, ranks.split(',')))
+        # ranked_list = list(map(float, ranks.split(',')))
+        ranked_list = re.split('; |, |\*|\n', ranks)
+        print('Ranked list:', ranked_list)
 
         # Create a traversability image
         # Note: the zero value is reserved for non-annotated regions
-        trav_img = np.zeros((self.image_resolution[1], self.image_resolution[0]))
+        trav_img = np.ones((self.image_resolution[1], self.image_resolution[0])) * np.nan
 
         for i, rank in enumerate(ranked_list):
             if i in rank_dict:
                 trav_img[rank_dict[i]] = rank
 
         # Resize the traversability image to the original resolution
-        trav_img = cv2.resize(trav_img, (original_resolution[1], original_resolution[0]))
+        trav_img = cv2.resize(trav_img, (original_resolution[1], original_resolution[0]), interpolation=cv2.INTER_NEAREST)
 
         # Convert the traversability image ros msg
-        trav_img = np.uint8(trav_img * 255)
+        # trav_img = np.uint8(trav_img * 254)
 
         _, im_encoded = cv2.imencode('.jpg', trav_img)
         output_msg = CompressedImage()
