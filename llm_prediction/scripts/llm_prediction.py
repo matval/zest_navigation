@@ -147,17 +147,16 @@ class LLMPredictor:
                 del sorted_anns[i]
 #
         rank_dict = {}
-        sorted_anns = new_masks
-        for i, ann in enumerate(sorted_anns, start=1):
+        for i, ann in enumerate(new_masks):
             m = ann['segmentation']
-            color_mask = np.concatenate([np.random.random(3), [0.5]])
+
             # Apply the mask to the image
-            img[m] = color_mask
-            labeled_image= ski.measure.label(m, connectivity=2, return_num=False)
+            labeled_image = ski.measure.label(m, connectivity=2, return_num=False)
             object_features = ski.measure.regionprops(labeled_image)
             largest_region = max(object_features, key=lambda x: x.area)
             largest_mask = np.zeros_like(m)
             largest_mask[labeled_image == largest_region ["label"]] = 1
+
             # Convert mask to uint8 type for cv2.findContours
             mask_uint8 = np.uint8(largest_mask* 255)  # Scale mask to 0-255 for OpenCV
             # Find contours in the mask
@@ -168,8 +167,16 @@ class LLMPredictor:
             filtered = [list(map(lambda x: x[0], largest_contour))]
             pole_of_inaccessibility = polylabel.polylabel(filtered, precision=1.0)
             cX, cY = pole_of_inaccessibility
-            cv2.putText(image,str(i),(int(cX), int(cY)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
-            rank_dict[str(i)]= m
+
+            text = str(i + 1)
+            fontFace = cv2.FONT_HERSHEY_SIMPLEX
+            fontScale = 1
+            fontColor = (255, 0, 0)
+            thickness = 2
+
+            text_width, text_height = cv2.getTextSize(text, fontFace, fontScale, thickness)[0]
+            cv2.putText(image, text, (int(cX - text_width/2), int(cY + text_height/2)), fontFace, 1, fontColor, thickness, cv2.LINE_AA)
+            rank_dict[i] = m
 
         return rank_dict, image
 
@@ -221,24 +228,19 @@ class LLMPredictor:
         time_start = time.time()
         # Query the GPT model 
         ranks = self.query_gpt("img.png")
-        # ranks = "0,0.1,1,0.7,0.8,1,0.5,0.2,1,0.5"
         print('Ranks:', ranks)
         print(f"Time taken for GPT: {time.time() - time_start}")
 
         # Parse the ranks
         ranked_list = list(map(float, ranks.split(',')))
 
-        ranked_dict = {}
-        for i, rank in enumerate(ranked_list):
-            ranked_dict[i]= rank
-
         # Create a traversability image
         # Note: the zero value is reserved for non-annotated regions
         trav_img = np.zeros((self.image_resolution[1], self.image_resolution[0]))
 
-        for i, key in ranked_dict.items():
-            if str(i) in rank_dict:
-                trav_img[rank_dict[str(i)]] = key
+        for i, rank in enumerate(ranked_list):
+            if i in rank_dict:
+                trav_img[rank_dict[i]] = rank
 
         # Resize the traversability image to the original resolution
         trav_img = cv2.resize(trav_img, (original_resolution[1], original_resolution[0]))
@@ -249,7 +251,6 @@ class LLMPredictor:
         _, im_encoded = cv2.imencode('.jpg', trav_img)
         output_msg = CompressedImage()
         output_msg.header = image_msg.header
-        # output_msg.header.stamp = rospy.Time.now()
         output_msg.format = "jpeg"
         output_msg.data = np.array(im_encoded).tobytes()
         
