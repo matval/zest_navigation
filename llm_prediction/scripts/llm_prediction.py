@@ -9,7 +9,6 @@ import skimage as ski
 import polylabel
 
 from torch.cuda.amp import autocast
-
 from sensor_msgs.msg import Image, CompressedImage
 
 # Import the SAM model
@@ -43,7 +42,6 @@ class LLMPredictor:
         sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
         sam.to(device=device)
 
-
         self.mask_generator = SamAutomaticMaskGenerator(
             model                   = sam,
             box_nms_thresh          = 0.7,
@@ -54,7 +52,7 @@ class LLMPredictor:
             stability_score_thresh  = 0.9,          # Compensate a bit on stability to capture big masks
             crop_n_layers           = 1,
             crop_n_points_downscale_factor = 4,
-            min_mask_region_area    = 500,          # Requires open-cv to run post-processing
+            min_mask_region_area    = 200,          # Requires open-cv to run post-processing
         )
 
         # Load the ChatGPT model
@@ -67,8 +65,8 @@ class LLMPredictor:
         self.image_sub = rospy.Subscriber(input_topic, CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
 
         # Publisher
-        self.image_pub = rospy.Publisher(output_topic, CompressedImage, queue_size=1)
-        self.debug_pub = rospy.Publisher('numbered_image/compressed', CompressedImage, queue_size=1)
+        self.image_pub = rospy.Publisher(output_topic, Image, queue_size=1)
+        self.debug_pub = rospy.Publisher('numbered_image', Image, queue_size=1)
 
         rospy.spin()
 
@@ -89,6 +87,7 @@ class LLMPredictor:
         # Query the model
         response = self.client.chat.completions.create(
             model="gpt-4o",
+            # model="gpt-4o-mini",
             messages=[
                 {
                 "role": "user",
@@ -130,23 +129,23 @@ class LLMPredictor:
         if len(anns) == 0:
             return
 
-        anns = [ann for ann in anns if ann['area'] > 500]
         sorted_anns = sorted(anns, key=(lambda x: x['area']), reverse=True)[:10]
         
-        img = np.zeros((sorted_anns[0]['segmentation'].shape[0], sorted_anns[0]['segmentation'].shape[1],4))
         new_masks = []
-
         while sorted_anns:
-            bitwise_or = [cv2.bitwise_and(ann['segmentation'].astype(int),sorted_anns[0]['segmentation'].astype(int))for ann in sorted_anns]
-            any = np.array([np.any(a) for a in bitwise_or])
-            idx = np.where(any)[0]
+            # Find overlapping masks
+            bitwise_or = [cv2.bitwise_and(ann['segmentation'].astype(np.uint8), sorted_anns[0]['segmentation'].astype(np.uint8)) for ann in sorted_anns]
+            any_overlap = np.array([np.any(a) for a in bitwise_or])
+            idx = np.where(any_overlap)[0]
+            
+            # Select the largest mask by area
             areas = [sorted_anns[i]['area'] for i in idx]
-            largest = np.argmax(areas)
-            new_masks.append(sorted_anns[largest])
-            sorted_idx = np.sort(idx)[::-1]
-            for i in sorted_idx:
-                del sorted_anns[i]
-#
+            largest_idx = idx[np.argmax(areas)]
+            new_masks.append(sorted_anns[largest_idx])
+            
+            # Remove processed annotations
+            sorted_anns = [ann for i, ann in enumerate(sorted_anns) if i not in idx]
+
         rank_dict = {}
         for i, ann in enumerate(new_masks):
             m = ann['segmentation']
@@ -155,29 +154,30 @@ class LLMPredictor:
             labeled_image = ski.measure.label(m, connectivity=2, return_num=False)
             object_features = ski.measure.regionprops(labeled_image)
             largest_region = max(object_features, key=lambda x: x.area)
-            largest_mask = np.zeros_like(m)
-            largest_mask[labeled_image == largest_region ["label"]] = 1
 
-            # Convert mask to uint8 type for cv2.findContours
-            mask_uint8 = np.uint8(largest_mask* 255)  # Scale mask to 0-255 for OpenCV
+            # Create a binary mask of the largest region
+            largest_mask = (labeled_image == largest_region.label).astype(np.uint8)
+
             # Find contours in the mask
-            contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)   
-            # Find the largest contour by area
-            largest_contour = max(contours, key=cv2.contourArea)
-        
-            filtered = [list(map(lambda x: x[0], largest_contour))]
-            pole_of_inaccessibility = polylabel.polylabel(filtered, precision=1.0)
-            cX, cY = pole_of_inaccessibility
+            contours, _ = cv2.findContours(largest_mask * 255, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)   
 
-            text = str(i + 1)
-            fontFace = cv2.FONT_HERSHEY_SIMPLEX
-            fontScale = 1
-            fontColor = (255, 0, 0)
-            thickness = 2
+            if contours:
+                # Find the largest contour by area
+                largest_contour = max(contours, key=cv2.contourArea)
+            
+                filtered = [list(map(lambda x: x[0], largest_contour))]
+                pole_of_inaccessibility = polylabel.polylabel(filtered, precision=1.0)
+                cX, cY = pole_of_inaccessibility
 
-            text_width, text_height = cv2.getTextSize(text, fontFace, fontScale, thickness)[0]
-            cv2.putText(image, text, (int(cX - text_width/2), int(cY + text_height/2)), fontFace, 1, fontColor, thickness, cv2.LINE_AA)
-            rank_dict[i] = m
+                text = str(i + 1)
+                fontFace = cv2.FONT_HERSHEY_SIMPLEX
+                fontScale = 0.5
+                fontColor = (255, 0, 0)
+                thickness = 2
+
+                text_width, text_height = cv2.getTextSize(text, fontFace, fontScale, thickness)[0]
+                cv2.putText(image, text, (int(cX - text_width/2), int(cY + text_height/2)), fontFace, 1, fontColor, thickness, cv2.LINE_AA)
+                rank_dict[i] = m
 
         return rank_dict, image
 
@@ -201,7 +201,7 @@ class LLMPredictor:
 
         time_start = time.time()
         # Get masks from the SAM model
-        with autocast():
+        with torch.inference_mode(), torch.autocast("cuda"):
             masks = self.mask_generator.generate(cv_image)
         print(f"Time taken for SAM: {time.time() - time_start}")
 
@@ -216,12 +216,14 @@ class LLMPredictor:
 
         # Convert the image to a ROS message
         image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        _, im_encoded = cv2.imencode('.jpg', image_bgr)
 
-        debug_msg = CompressedImage()
+        debug_msg = Image()
         debug_msg.header = image_msg.header
-        debug_msg.format = "jpeg"
-        debug_msg.data = np.array(im_encoded).tobytes()
+        debug_msg.encoding = "bgr8"
+        debug_msg.height = image.shape[0]
+        debug_msg.width = image.shape[1]
+        debug_msg.step = image.shape[1] * 3
+        debug_msg.data = image_bgr.tobytes()
 
         # Publish the annotated image
         self.debug_pub.publish(debug_msg)
@@ -234,12 +236,12 @@ class LLMPredictor:
 
         # Parse the ranks
         # ranked_list = list(map(float, ranks.split(',')))
-        ranked_list = re.split('; |, |\*|\n', ranks)
+        ranked_list = re.split(';|,|\*|\n', ranks.replace(' ', ''))
         print('Ranked list:', ranked_list)
 
         # Create a traversability image
         # Note: the zero value is reserved for non-annotated regions
-        trav_img = np.ones((self.image_resolution[1], self.image_resolution[0])) * np.nan
+        trav_img = np.ones((self.image_resolution[1], self.image_resolution[0]), dtype=np.float32) * np.nan
 
         for i, rank in enumerate(ranked_list):
             if i in rank_dict:
@@ -249,13 +251,14 @@ class LLMPredictor:
         trav_img = cv2.resize(trav_img, (original_resolution[1], original_resolution[0]), interpolation=cv2.INTER_NEAREST)
 
         # Convert the traversability image ros msg
-        # trav_img = np.uint8(trav_img * 254)
-
-        _, im_encoded = cv2.imencode('.jpg', trav_img)
-        output_msg = CompressedImage()
+        output_msg = Image()
         output_msg.header = image_msg.header
-        output_msg.format = "jpeg"
-        output_msg.data = np.array(im_encoded).tobytes()
+        output_msg.encoding = "32FC1"
+        output_msg.height = trav_img.shape[0]
+        output_msg.width = trav_img.shape[1]
+        output_msg.step = trav_img.shape[1] * 4
+        # We multiply by 100 just to visualize the traversability values better in rviz
+        output_msg.data = (trav_img * 100).tobytes()
         
         # Publish the traversability image
         self.image_pub.publish(output_msg)

@@ -5,7 +5,7 @@
 #include <ros/ros.h>
 #include <cv_bridge/cv_bridge.h>
 
-#include <sensor_msgs/CompressedImage.h>
+#include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
 
 #include <tf2_ros/transform_listener.h>
@@ -70,7 +70,7 @@ pcl::RangeImage::CoordinateFrame coordinate_frame = pcl::RangeImage::LASER_FRAME
 
 tf2_ros::Buffer tfBuffer(ros::Duration(100));
 
-void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& in_pc2, const sensor_msgs::CompressedImageConstPtr& in_image){
+void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& in_pc2, const sensor_msgs::ImageConstPtr& in_image){
     /*
         @brief Callback function to process the incoming point cloud and image messages
         @param in_pc2: Incoming point cloud message
@@ -78,7 +78,7 @@ void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& in_pc2, c
     */
     cv_bridge::CvImagePtr cv_ptr;
     try{
-        cv_ptr = cv_bridge::toCvCopy(in_image, sensor_msgs::image_encodings::MONO8);
+        cv_ptr = cv_bridge::toCvCopy(in_image, "32FC1");
     }
     catch (cv_bridge::Exception& e){
         ROS_ERROR("cv_bridge exception: %s", e.what());
@@ -302,14 +302,17 @@ void callback(const boost::shared_ptr<const sensor_msgs::PointCloud2>& in_pc2, c
         if (px_data < 0.0 || px_data >= cols || py_data < 0.0 || py_data >= rows)
             continue;
 
-        uint8_t trav = cv_ptr->image.at<uint8_t>(py_data, px_data);
+        float trav = cv_ptr->image.at<float>(py_data, px_data);
+
+        if (std::isnan(trav) || std::isinf(trav))
+            continue;
 
         TraversabilityPoint point;
         point.x = P_out->points[i].x;
         point.y = P_out->points[i].y;
         point.z = P_out->points[i].z;
         point.intensity = P_out->points[i].intensity;
-        point.traversability = static_cast<float>(trav) / 255.0;
+        point.traversability = trav / 100.0;
         
         pc_trav->points.push_back(point);       
     }
@@ -352,10 +355,10 @@ int main(int argc, char** argv) {
 
     // Subscribers for point cloud and image topics
     message_filters::Subscriber<PointCloud2> pc_sub(nh, pcTopic, 100);
-    message_filters::Subscriber<CompressedImage> img_sub(nh, imgTopic, 100);
+    message_filters::Subscriber<Image> img_sub(nh, imgTopic, 100);
 
     // Synchronize the two subscribers
-    typedef sync_policies::ApproximateTime<PointCloud2, CompressedImage> MySyncPolicy;
+    typedef sync_policies::ApproximateTime<PointCloud2, Image> MySyncPolicy;
     Synchronizer<MySyncPolicy> sync(MySyncPolicy(100), pc_sub, img_sub);
     sync.registerCallback(boost::bind(&callback, _1, _2));
     rangeImage = boost::shared_ptr<pcl::RangeImageSpherical>(new pcl::RangeImageSpherical);

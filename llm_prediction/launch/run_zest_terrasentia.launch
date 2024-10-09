@@ -12,7 +12,7 @@
         <!-- Start the prediction node -->
         <node pkg="llm_prediction" type="llm_prediction.py" name="llm_prediction" output="screen" launch-prefix="$(arg venv)" >
             <param name="input_topic" value="/terrasentia/zed2/zed_node/rgb/image_rect_color/compressed"/>
-            <param name="output_topic" value="/terrasentia/traversability_map/compressed"/>
+            <param name="output_topic" value="/terrasentia/traversability_map"/>
         </node>
 
         <!-- Start the mock prediction node -->
@@ -25,7 +25,7 @@
 
         <!-- Start the camera to lidar projection node -->
         <include file="$(find image_projection)/launch/vlp16_projection.launch">
-            <arg name="image_topic"      value="/terrasentia/traversability_map/compressed"/>
+            <arg name="image_topic"      value="/terrasentia/traversability_map"/>
             <arg name="pointcloud_topic" value="/terrasentia/velodyne_points"/>
             <arg name="params_file"      value="$(find image_projection)/cfg/llm_params.yaml"/>
         </include>

@@ -155,10 +155,6 @@ void OctomapNode::callback(const boost::shared_ptr<const sensor_msgs::PointCloud
             if (it.get_node().get_state() == traversability_bki::State::OCCUPIED)
             {
                 double traversability = it.get_node().get_mean();
-                if (traversability < MIN_TRAVERSABILITY || traversability > MAX_TRAVERSABILITY)
-                {
-                    ROS_WARN_STREAM("Traversability out of bounds: " << traversability);
-                }
                 marker_pub_->insert_color_point3d(p.x(), p.y(), p.z(), MIN_TRAVERSABILITY, MAX_TRAVERSABILITY, it.get_size(), traversability);
                 num_voxels++;
             }
