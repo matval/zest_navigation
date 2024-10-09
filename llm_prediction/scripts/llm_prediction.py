@@ -1,3 +1,4 @@
+import re
 import cv2
 import time
 import torch
@@ -60,7 +61,7 @@ class LLMPredictor:
         key_file = rospkg.RosPack().get_path('llm_prediction') + '/../api_key.txt'
         with open(key_file, 'r') as file:
              api_key = file.read().strip()
-        # self.client = OpenAI(api_key=api_key)
+        self.client = OpenAI(api_key=api_key)
 
         # Subscriber
         self.image_sub = rospy.Subscriber(input_topic, CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
@@ -92,9 +93,13 @@ class LLMPredictor:
                 {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "In the image analyze the numbered regions and assign a traversability value for a robot between 0 and 1 \
-        where 0 represents  untravarsable areas or obstacles and dangerous areas like trees, cars etc and 1 represents traversable areas like roads.\
-        Consider terrain and general navigability with ground robots in mind. Output should be the traversavbility values from region 1 to n without the reasoning, for example 0,0.5,1,..."},
+                    {
+                        "type": "text", "text": "In the image, analyze the numbered regions and assign traversability values for each region. \
+                        The traversability values should be real numbers where 0 represents low traversability and 1 represents high traversability. \
+                        For example, traversability 0.0 represents obstacles and dangerous areas like trees, cars, and etc. \
+                        Traversability 1.0 represents highly traversable areas like roads and flat terrains. \
+                        Assume the image comes from a small wheeled robot. \
+                        The output should be the traversavbility values from region 1 to n without the reasoning, for example 0,0.5,1,..."},
                     {
                     "type": "image_url",
                     "image_url": {
@@ -143,17 +148,16 @@ class LLMPredictor:
                 del sorted_anns[i]
 #
         rank_dict = {}
-        sorted_anns = new_masks
-        for i, ann in enumerate(sorted_anns, start=1):
+        for i, ann in enumerate(new_masks):
             m = ann['segmentation']
-            color_mask = np.concatenate([np.random.random(3), [0.5]])
+
             # Apply the mask to the image
-            img[m] = color_mask
-            labeled_image= ski.measure.label(m, connectivity=2, return_num=False)
+            labeled_image = ski.measure.label(m, connectivity=2, return_num=False)
             object_features = ski.measure.regionprops(labeled_image)
             largest_region = max(object_features, key=lambda x: x.area)
             largest_mask = np.zeros_like(m)
             largest_mask[labeled_image == largest_region ["label"]] = 1
+
             # Convert mask to uint8 type for cv2.findContours
             mask_uint8 = np.uint8(largest_mask* 255)  # Scale mask to 0-255 for OpenCV
             # Find contours in the mask
@@ -164,8 +168,16 @@ class LLMPredictor:
             filtered = [list(map(lambda x: x[0], largest_contour))]
             pole_of_inaccessibility = polylabel.polylabel(filtered, precision=1.0)
             cX, cY = pole_of_inaccessibility
-            cv2.putText(image,str(i),(int(cX), int(cY)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
-            rank_dict[str(i)]= m
+
+            text = str(i + 1)
+            fontFace = cv2.FONT_HERSHEY_SIMPLEX
+            fontScale = 1
+            fontColor = (255, 0, 0)
+            thickness = 2
+
+            text_width, text_height = cv2.getTextSize(text, fontFace, fontScale, thickness)[0]
+            cv2.putText(image, text, (int(cX - text_width/2), int(cY + text_height/2)), fontFace, 1, fontColor, thickness, cv2.LINE_AA)
+            rank_dict[i] = m
 
         return rank_dict, image
 
@@ -216,35 +228,32 @@ class LLMPredictor:
 
         time_start = time.time()
         # Query the GPT model 
-        # ranks = self.query_gpt("img.png")
-        ranks = "0,0.1,1,0.7,0.8,1,0.5,0.2,1,0.5"
+        ranks = self.query_gpt("img.png")
+        print('Ranks:', ranks)
         print(f"Time taken for GPT: {time.time() - time_start}")
 
         # Parse the ranks
-        ranked_list = list(map(float, ranks.split(',')))
-
-        ranked_dict = {}
-        for i, rank in enumerate(ranked_list):
-            ranked_dict[i]= rank
+        # ranked_list = list(map(float, ranks.split(',')))
+        ranked_list = re.split('; |, |\*|\n', ranks)
+        print('Ranked list:', ranked_list)
 
         # Create a traversability image
         # Note: the zero value is reserved for non-annotated regions
-        trav_img = np.zeros((self.image_resolution[1], self.image_resolution[0]))
+        trav_img = np.ones((self.image_resolution[1], self.image_resolution[0])) * np.nan
 
-        for i, key in ranked_dict.items():
-            if str(i) in rank_dict:
-                trav_img[rank_dict[str(i)]] = key
+        for i, rank in enumerate(ranked_list):
+            if i in rank_dict:
+                trav_img[rank_dict[i]] = rank
 
         # Resize the traversability image to the original resolution
-        trav_img = cv2.resize(trav_img, (original_resolution[1], original_resolution[0]))
+        trav_img = cv2.resize(trav_img, (original_resolution[1], original_resolution[0]), interpolation=cv2.INTER_NEAREST)
 
         # Convert the traversability image ros msg
-        trav_img = np.uint8(trav_img * 255)
+        # trav_img = np.uint8(trav_img * 254)
 
         _, im_encoded = cv2.imencode('.jpg', trav_img)
         output_msg = CompressedImage()
         output_msg.header = image_msg.header
-        # output_msg.header.stamp = rospy.Time.now()
         output_msg.format = "jpeg"
         output_msg.data = np.array(im_encoded).tobytes()
         

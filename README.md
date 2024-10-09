@@ -51,8 +51,9 @@ An LLM-based Zero-Shot Traversability Navigation Method
 	sudo apt-get install libjpeg-dev zlib1g-dev libpython3-dev libopenblas-dev libavcodec-dev libavformat-dev libswscale-dev
 	git clone --branch <version> https://github.com/pytorch/vision torchvision
 	cd torchvision
-	export BUILD_VERSION=0.x.0  # where 0.x.0 is the torchvision version. For Pytorch 2.1.0, choose 0.16.1  
-	/home/companion/catkin_ws/src/zest_navigation/env/bin/python setup.py install
+	export BUILD_VERSION=0.x.0  # where 0.x.0 is the torchvision version. For Pytorch 2.1.0, choose 0.16.1
+  pip3 install numpy>=1.19.1
+	/home/companion/catkin_ws/src/zest_navigation/env/bin/python3 setup.py install
 	```
 	where `/home/companion/catkin_ws/src/zest_navigation/env/bin/python` is the Python interpreter from your virtualenv.
 
