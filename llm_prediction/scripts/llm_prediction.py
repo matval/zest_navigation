@@ -12,7 +12,8 @@ from torch.cuda.amp import autocast
 from sensor_msgs.msg import Image, CompressedImage
 
 # Import the SAM model
-from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+from sam2.build_sam import build_sam2
+from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
 
 # ChatGPT imports
 import base64
@@ -26,33 +27,37 @@ class LLMPredictor:
         self.image_resolution = rospy.get_param('~image_resolution', [336, 224])
         self.area_threshold = rospy.get_param('~area_threshold', 500)
         self.test_mode = rospy.get_param('~test_mode', True)
-        model_type = rospy.get_param('~model_type', 'vit_b')
+        model_type = rospy.get_param('~model_type', 'tiny')
 
         # Load the SAM model
-        if model_type == "vit_b":
-            sam_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam_vit_b_01ec64.pth"
-        elif model_type == "vit_l":
-            sam_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam_vit_l_0b3195.pth"
-        elif model_type == "vit_h":
-            sam_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam_vit_h_4b8939.pth"
+        if model_type == "tiny":
+            sam2_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam2.1_hiera_tiny.pt"
+            model_cfg = "configs/sam2.1/sam2.1_hiera_t.yaml"
+        elif model_type == "small":
+            sam2_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam2.1_hiera_small.pt"
+            model_cfg = rospkg.RosPack().get_path('wayfast_zero') +"/config/sam2.1_hiera_s.yaml"
+        elif model_type == "large":
+            sam2_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam2.1_hiera_large.pt"
+            model_cfg = rospkg.RosPack().get_path('wayfast_zero') +"/config/sam2.1_hiera_l.yaml"
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"LLM prediction node using device: {device}")
 
-        sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-        sam.to(device=device)
+        sam2 = build_sam2(model_cfg, sam2_checkpoint, device=device, apply_postprocessing=False)
+        sam2.to(device=device)
 
-        self.mask_generator = SamAutomaticMaskGenerator(
-            model                   = sam,
+        self.mask_generator = SAM2AutomaticMaskGenerator(
+            model                   = sam2,
             box_nms_thresh          = 0.7,
-            crop_nms_thresh         = 0.7,
-            crop_overlap_ratio      = 0.35,
-            points_per_side         = 8,
-            pred_iou_thresh         = 0.95,         # High confidence score
-            stability_score_thresh  = 0.9,          # Compensate a bit on stability to capture big masks
+            points_per_side         = 8,  
+            points_per_batch = 128,  
+            pred_iou_thresh = 0.95,     
+            stability_score_thresh  = 0.9, 
+            stability_score_offset = 0.7,          
             crop_n_layers           = 1,
             crop_n_points_downscale_factor = 4,
-            min_mask_region_area    = 200,          # Requires open-cv to run post-processing
+            min_mask_region_area    = 300,
+            use_m2m = False,         
         )
 
         # Load the ChatGPT model
