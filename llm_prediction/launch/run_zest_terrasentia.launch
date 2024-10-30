@@ -11,8 +11,7 @@
 
         <!-- Start the prediction node -->
         <node pkg="llm_prediction" type="llm_prediction.py" name="llm_prediction" output="screen" launch-prefix="$(arg venv)" >
-            <param name="input_topic" value="/terrasentia/zed2/zed_node/rgb/image_rect_color/compressed"/>
-            <param name="output_topic" value="/terrasentia/traversability_map"/>
+            <rosparam file="$(find llm_prediction)/config/config.yaml" command="load" />
         </node>
 
         <!-- Start the mock prediction node -->

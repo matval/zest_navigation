@@ -9,6 +9,7 @@ import skimage as ski
 import polylabel
 
 from torch.cuda.amp import autocast
+from skimage.segmentation import slic
 from sensor_msgs.msg import Image, CompressedImage
 
 # Import the SAM model
@@ -35,10 +36,12 @@ class LLMPredictor:
             model_cfg = "configs/sam2.1/sam2.1_hiera_t.yaml"
         elif model_type == "small":
             sam2_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam2.1_hiera_small.pt"
-            model_cfg = rospkg.RosPack().get_path('wayfast_zero') +"/config/sam2.1_hiera_s.yaml"
+            model_cfg = "configs/sam2.1/sam2.1_hiera_s.yaml"
         elif model_type == "large":
             sam2_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam2.1_hiera_large.pt"
-            model_cfg = rospkg.RosPack().get_path('wayfast_zero') +"/config/sam2.1_hiera_l.yaml"
+            model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
+        else:
+            raise ValueError(f"Invalid model type: {model_type}")
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"LLM prediction node using device: {device}")
@@ -50,10 +53,10 @@ class LLMPredictor:
             model                   = sam2,
             box_nms_thresh          = 0.7,
             points_per_side         = 8,  
-            points_per_batch = 128,  
-            pred_iou_thresh = 0.95,     
+            points_per_batch        = 128,  
+            pred_iou_thresh         = 0.95,     
             stability_score_thresh  = 0.9, 
-            stability_score_offset = 0.7,          
+            stability_score_offset  = 0.7,          
             crop_n_layers           = 1,
             crop_n_points_downscale_factor = 4,
             min_mask_region_area    = 300,
@@ -103,7 +106,8 @@ class LLMPredictor:
                         For example, traversability 0.0 represents obstacles and dangerous areas like trees, cars, and etc. \
                         Traversability 1.0 represents highly traversable areas like roads and flat terrains. \
                         Assume the image comes from a small wheeled robot. \
-                        The output should be the traversavbility values from region 1 to n without the reasoning, for example 0,0.5,1,..."},
+                        The output should be the traversavbility values from region 1 to n without the reasoning, formatted as a list, \
+                        for example [0,0.5,1,...]"},
                     {
                     "type": "image_url",
                     "image_url": {
@@ -204,11 +208,16 @@ class LLMPredictor:
         # Resize the image
         cv_image = cv2.resize(cv_image, self.image_resolution)
 
+        # time_start = time.time()
+        # # Get masks from the SAM model
+        # with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+        #     masks = self.mask_generator.generate(cv_image)
+        # print(f"Time taken for SAM: {time.time() - time_start}")
+
         time_start = time.time()
-        # Get masks from the SAM model
-        with torch.inference_mode(), torch.autocast("cuda"):
-            masks = self.mask_generator.generate(cv_image)
-        print(f"Time taken for SAM: {time.time() - time_start}")
+        masks = slic(cv_image, n_segments=10, compactness=5, sigma=1)
+        masks = [{'segmentation': masks == i, 'area': np.sum(masks == i)} for i in np.unique(masks)]
+        print(f"Time taken for SLIC: {time.time() - time_start}")
 
         time_start = time.time()
         # Add numbers to the masks
@@ -241,7 +250,7 @@ class LLMPredictor:
 
         # Parse the ranks
         # ranked_list = list(map(float, ranks.split(',')))
-        ranked_list = re.split(';|,|\*|\n', ranks.replace(' ', ''))
+        ranked_list = re.split(';|,|\*|\n', ranks.replace(' ', '').replace('[', '').replace(']', ''))
         print('Ranked list:', ranked_list)
 
         # Create a traversability image
