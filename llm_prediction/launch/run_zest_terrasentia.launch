@@ -30,10 +30,15 @@
         </include>
 
         <!-- Start the traversability octomap node -->
-        <node pkg="traversability_octomap" type="octomap_node" name="octomap_node" output="screen">
+        <node pkg="traversability_octomap" type="octomap_node" name="octomap_node" output="log">
             <rosparam file="$(find traversability_octomap)/config/traversability_octomap.yaml" command="load" />
             <param name="pointcloud_topic"  value="/terrasentia/projection_node/traversability_cloud"/>
             <param name="odom_topic"        value="/terrasentia/dlio/odom_node/odom"/>
+        </node>
+
+        <!-- Start the path planning node -->
+        <node pkg="rrt_star" type="rrt_node" name="rrt_node" output="screen">
+            <rosparam file="$(find rrt_star)/config/rrt_params.yaml" command="load" />
         </node>
 
         <!-- Start the MPPI controller node -->

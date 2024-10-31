@@ -87,6 +87,9 @@ private:
 
         // Compute the cost using alpha1 and alpha2
         double cost = exp(-(alpha1_ * min_traversability + alpha2_ * min_lambda));
+        // double cost = -(alpha1_ * min_traversability + alpha2_ * min_lambda);
+
+        // std::cout << "cost: " << cost << std::endl;
 
         return cost;
     }
@@ -117,11 +120,11 @@ private:
     }
 
     float getMinTraversability(const std::vector<grid_map::Position>& footprint) const {
-        return getMinValue(footprint, "traversability", 0.5f); 
+        return getMinValue(footprint, "traversability", 0.0f); 
     }
 
     float getMinLambda(const std::vector<grid_map::Position>& footprint) const {
-        return getMinValue(footprint, "lambda", 4.0f); 
+        return getMinValue(footprint, "lambda", 0.0f);
     }
 
     float getMinValue(const std::vector<grid_map::Position>& footprint, const std::string& layer_name, float default_value) const {

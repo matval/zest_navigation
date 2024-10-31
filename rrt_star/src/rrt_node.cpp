@@ -108,31 +108,27 @@ bool RRTNode::isStateValid(const ob::State* state) {
 void RRTNode::spin() {
     ros::Rate rate(planning_frequency_); 
 
-    ros::Time last_planning_time = ros::Time::now();
+    // ros::Time last_planning_time = ros::Time::now();
 
     while (ros::ok()) {
         ros::spinOnce();  
 
-        ros::Time current_time = ros::Time::now();
-        ros::Duration time_since_last_plan = current_time - last_planning_time;
+        // ros::Time current_time = ros::Time::now();
+        // ros::Duration time_since_last_plan = current_time - last_planning_time;
 
         // Determine if it's time to replan based on frequency
-        bool time_to_replan = time_since_last_plan.toSec() >= (1.0 / planning_frequency_);
+        // bool time_to_replan = time_since_last_plan.toSec() >= (1.0 / planning_frequency_);
 
-        // Determine if a new goal has been received
-        bool new_goal = goal_received_;
-
-        // Decide whether to replan
-        if ((!time_to_replan && !new_goal)) {
-            // Not time to replan and no new goal, skip planning
+        // Wait for goal
+        if (!goal_received_) {
             rate.sleep();
             continue;
         }
 
         // Update the last planning time if replanning due to frequency
-        if (time_to_replan) {
-            last_planning_time = current_time;
-        }
+        // if (time_to_replan) {
+        //     last_planning_time = current_time;
+        // }
 
         // Proceed with planning
         try {
@@ -216,6 +212,8 @@ void RRTNode::spin() {
             // Solve using OMPL
             ompl::base::PlannerStatus solved = omplSimpleSetup_->solve(solver_time_);
 
+            ROS_INFO("Done solving OMPL problem!");
+
             if (solved) {
                 ROS_INFO("Path found, publishing...");
 
@@ -252,10 +250,9 @@ void RRTNode::spin() {
                 // Publish the path as nav_msgs::Path
                 publishPath(path);
 
-                // Reset the goal_received_ flag if replanning was triggered by a new goal
-                if (new_goal) {
-                    goal_received_ = false;
-                }
+                // Reset the goal_received_ flag
+                goal_received_ = false;
+
             } else {
                 ROS_WARN("No path found.");
             }
@@ -360,11 +357,24 @@ void RRTNode::updateBoundsFromGridMap() {
     grid_map::Position map_center = grid_map_.getPosition();
     grid_map::Length map_size = grid_map_.getLength();
 
-    // Calculate new boundaries based on the grid map size and center
+    // Calculate new boundaries based on the grid map size, robot position, and goal position
     double new_min_x = map_center.x() - (map_size.x() / 2);
     double new_max_x = map_center.x() + (map_size.x() / 2);
     double new_min_y = map_center.y() - (map_size.y() / 2);
     double new_max_y = map_center.y() + (map_size.y() / 2);
+
+    if (states_received_) {
+        new_min_x = std::min(new_min_x, robot_states_[0] - 1.0);
+        new_max_x = std::max(new_max_x, robot_states_[0] + 1.0);
+        new_min_y = std::min(new_min_y, robot_states_[1] - 1.0);
+        new_max_y = std::max(new_max_y, robot_states_[1] + 1.0);
+    }
+    if (goal_received_) {
+        new_min_x = std::min(new_min_x, goal_x_ - 1.0);
+        new_max_x = std::max(new_max_x, goal_x_ + 1.0);
+        new_min_y = std::min(new_min_y, goal_y_ - 1.0);
+        new_max_y = std::max(new_max_y, goal_y_ + 1.0);
+    }
 
     // If this is the first time or the map has grown, update the boundaries
     bool is_first_setup = (min_x_ == 0 && max_x_ == 0 && min_y_ == 0 && max_y_ == 0);

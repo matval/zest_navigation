@@ -3,10 +3,10 @@ frame_id: odom
 
 odom_topic: /terrasentia/dlio/odom_node/odom
 grid_map_topic: /terrasentia/octomap_node/traversability_map
-# alpha1: 1.0
-# alpha2: 1.0
+alpha1: 50.0
+alpha2: 0.001
 # robot_length: 0.5
 # robot_width: 0.3
 # num_samples: 10
-planning_frequency: 0.1
-# solver_time: 1.0
+planning_frequency: 0.5
+solver_time: 2.0
