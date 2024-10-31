@@ -171,6 +171,20 @@ class TRAVERSABILITY_MPPI_NODE:
         distances = [np.hypot(px - self.current_pose['x'], py - self.current_pose['y']) for px, py in path]
         closest_index = np.argmin(distances)
 
+        if distances[-1] < 0.5:
+            if self.verbose:
+                print("Goal reached!")
+
+            mpc_reference = {
+                'x': [],
+                'y': [],
+                'theta': [0.0],
+                'v': [0.0],
+                'omega': [0.0]
+            }
+
+            return mpc_reference
+
         # Generate interpolated reference points
         horizon_length = self.N * self.reference_speed * self.dt
         x_ref_seq, y_ref_seq = generate_interpolated_reference(closest_index, path, horizon_length, self.N)
