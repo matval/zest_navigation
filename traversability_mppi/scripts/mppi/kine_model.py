@@ -120,18 +120,27 @@ class KINE_MODEL(nn.Module):
 
         # Compute the map cost using the worst-case traversability
         travs, _ = torch.min(travs, dim=-2)
+        aleatoric_uncertainty = travs[..., 0].view(B, K, T)
+        epistemic_uncertainty = travs[..., 1].view(B, K, T, 1)
         # trav_cost = torch.exp(-travs) @ self.W
-        trav_cost = -travs @ self.W
-        trav_cost = torch.sum(trav_cost, dim=-1).view(B, K, T)
+        # trav_cost = -travs @ self.W
+        # trav_cost = torch.sum(aleatoric_cost, dim=-1).view(B, K, T)
+        aleatoric_cost = -aleatoric_uncertainty * self.W[0,0]
+        epistemic_cost = torch.exp(-epistemic_uncertainty * self.W[1,1])
 
-        print('states_cost max:', states_cost.max())
-        print('states_cost_f max:', states_cost_f.max())
-        print('action_cost max:', action_cost.max())
-        print('trav_cost max:', trav_cost.max())
-        print('trav_cost min:', trav_cost.min())
+        # Action conditioned on the epistemic uncertainty
+        action_error = (action - reference[...,3:] * (1.0 - epistemic_cost))
+        action_cost = torch.square(action_error) @ self.R
+        action_cost = torch.sum(action_cost, dim=-1)
+
+        # print('states_cost max:', states_cost.max())
+        # print('states_cost_f max:', states_cost_f.max())
+        # print('action_cost max:', action_cost.max())
+        # print('aleatoric_cost max:', aleatoric_cost.max())
+        # print('aleatoric_cost min:', aleatoric_cost.min())
 
         # Sum the costs
-        return states_cost + action_cost + trav_cost, travs
+        return states_cost + action_cost + aleatoric_cost, travs
     
     @torch.jit.script
     def x_dot(state: torch.Tensor, action: torch.Tensor, mu: torch.Tensor, nu: torch.Tensor):

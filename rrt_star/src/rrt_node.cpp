@@ -120,7 +120,7 @@ void RRTNode::spin() {
         // bool time_to_replan = time_since_last_plan.toSec() >= (1.0 / planning_frequency_);
 
         // Wait for goal
-        if (!goal_received_) {
+        if (!goal_received_ && !map_received_) {
             rate.sleep();
             continue;
         }
@@ -252,6 +252,9 @@ void RRTNode::spin() {
 
                 // Reset the goal_received_ flag
                 goal_received_ = false;
+
+                // Reset the map_received_ flag
+                map_received_ = false;
 
             } else {
                 ROS_WARN("No path found.");

@@ -11,8 +11,8 @@ map_topic: /terrasentia/octomap_node/traversability_map
 horizon: 20
 num_samples: 1024
 delta_time: 0.4
-temperature: 0.2
+temperature: 0.05
 reference_speed: 0.5
-u_min: [-0.4, -3.0] 
-u_max: [0.8, 3.0]
+u_min: [-0.4, -1.5] 
+u_max: [0.6, 1.5]
 noise_mu: [0.2, 0.0]

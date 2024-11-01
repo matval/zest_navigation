@@ -59,8 +59,8 @@ class TRAVERSABILITY_MPPI_NODE:
             u_max       = u_max,
             Q           = [1.0, 1.0, 0.5],
             Qf          = [2.0, 2.0, 0.5],
-            R           = [10.0, 0.1],
-            W           = [50.0, 0.001],
+            R           = [10.0, 0.01],
+            W           = [40.0, 1.0],
             robot_length= robot_length,
             robot_width = robot_width
         ).to(self.device)
