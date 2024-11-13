@@ -86,8 +86,9 @@ private:
         float min_lambda = getMinLambda(footprint);
 
         // Compute the cost using alpha1 and alpha2
-        double cost = exp(-(alpha1_ * min_traversability + alpha2_ * min_lambda));
+        double cost = exp(-alpha1_ * min_traversability) + exp(-alpha2_ * (min_lambda - 2.0));
         // double cost = -(alpha1_ * min_traversability + alpha2_ * min_lambda);
+        // double cost = alpha1_ * exp(-min_traversability) + alpha2_ * exp(-min_lambda);
 
         // std::cout << "cost: " << cost << std::endl;
 

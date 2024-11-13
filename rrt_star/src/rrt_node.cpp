@@ -83,8 +83,8 @@ void RRTNode::setupOMPL() {
 
     // Set RRT* as the planner
     auto planner = std::make_shared<og::RRTstar>(omplSimpleSetup_->getSpaceInformation());
-    planner->setRange(6.0);  
-    planner->setRewireFactor(3.0); 
+    planner->setRange(2.0);  
+    planner->setRewireFactor(1.0); 
 
     omplSimpleSetup_->setPlanner(planner);
 
