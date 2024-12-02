@@ -6,14 +6,13 @@
 
 using std::vector;
 
-// #define DEBUG true;
+#define DEBUG true;
 
 #ifdef DEBUG
+    #include <iostream>
 
-#include <iostream>
-
-#define Debug_Msg(msg) {\
-    std::cout << "Debug: " << msg << std::endl; }
+    #define Debug_Msg(msg) {\
+        std::cout << "Debug: " << msg << std::endl; }
 #endif
 
 namespace traversability_bki
@@ -246,9 +245,11 @@ namespace traversability_bki
                     // Get current node
                     TraversabilityOcTreeNode &node = leaf_it.get_node();
                     
+                    std::cout << "Before update. ybars[j][2]: " << ybars[j][2] << std::endl;
                     // Apply the update step
                     if (ybars[j][2] > 0.001f)
                         node.update(ybars[j]);
+                    std::cout << "After update." << std::endl;
                 }
             }
         }

@@ -83,8 +83,9 @@ void RRTNode::setupOMPL() {
 
     // Set RRT* as the planner
     auto planner = std::make_shared<og::RRTstar>(omplSimpleSetup_->getSpaceInformation());
-    planner->setRange(6.0);  
-    planner->setRewireFactor(3.0); 
+    planner->setRange(2.0);  
+    planner->setRewireFactor(1.0); 
+    planner->setGoalBias(0.05);
 
     omplSimpleSetup_->setPlanner(planner);
 
@@ -102,36 +103,31 @@ bool RRTNode::isStateValid(const ob::State* state) {
         return false;
     }
 
+    grid_map::Position position(x, y);
+    grid_map::Index index;
+    grid_map_.getIndex(position, index);
+
+    float traversability = grid_map_.at("traversability", index);
+    float lambda = grid_map_.at("lambda", index);
+    const float traversability_threshold = 0.21f;
+    const float lambda_threshold = 2.05f;
+
+    if (traversability < traversability_threshold && lambda < lambda_threshold)
+        return false;
+
     return true;
 }
 
 void RRTNode::spin() {
     ros::Rate rate(planning_frequency_); 
 
-    ros::Time last_planning_time = ros::Time::now();
-
     while (ros::ok()) {
         ros::spinOnce();  
 
-        ros::Time current_time = ros::Time::now();
-        ros::Duration time_since_last_plan = current_time - last_planning_time;
-
-        // Determine if it's time to replan based on frequency
-        bool time_to_replan = time_since_last_plan.toSec() >= (1.0 / planning_frequency_);
-
-        // Determine if a new goal has been received
-        bool new_goal = goal_received_;
-
-        // Decide whether to replan
-        if ((!time_to_replan && !new_goal)) {
-            // Not time to replan and no new goal, skip planning
+        // Wait for goal
+        if (!goal_received_ && !map_received_) {
             rate.sleep();
             continue;
-        }
-
-        // Update the last planning time if replanning due to frequency
-        if (time_to_replan) {
-            last_planning_time = current_time;
         }
 
         // Proceed with planning
@@ -199,10 +195,7 @@ void RRTNode::spin() {
                 alpha1_,
                 alpha2_,
                 robot_length_,
-                robot_width_,
-                num_samples_,
-                goal_x_,
-                goal_y_);
+                robot_width_);
 
             if (!combined_obj) {
                 ROS_ERROR("Failed to create combined optimization objective.");
@@ -215,6 +208,8 @@ void RRTNode::spin() {
             ROS_INFO("Starting OMPL planning...");
             // Solve using OMPL
             ompl::base::PlannerStatus solved = omplSimpleSetup_->solve(solver_time_);
+
+            ROS_INFO("Done solving OMPL problem!");
 
             if (solved) {
                 ROS_INFO("Path found, publishing...");
@@ -252,10 +247,12 @@ void RRTNode::spin() {
                 // Publish the path as nav_msgs::Path
                 publishPath(path);
 
-                // Reset the goal_received_ flag if replanning was triggered by a new goal
-                if (new_goal) {
-                    goal_received_ = false;
-                }
+                // Reset the goal_received_ flag
+                goal_received_ = false;
+
+                // Reset the map_received_ flag
+                map_received_ = false;
+
             } else {
                 ROS_WARN("No path found.");
             }
@@ -360,11 +357,24 @@ void RRTNode::updateBoundsFromGridMap() {
     grid_map::Position map_center = grid_map_.getPosition();
     grid_map::Length map_size = grid_map_.getLength();
 
-    // Calculate new boundaries based on the grid map size and center
+    // Calculate new boundaries based on the grid map size, robot position, and goal position
     double new_min_x = map_center.x() - (map_size.x() / 2);
     double new_max_x = map_center.x() + (map_size.x() / 2);
     double new_min_y = map_center.y() - (map_size.y() / 2);
     double new_max_y = map_center.y() + (map_size.y() / 2);
+
+    if (states_received_) {
+        new_min_x = std::min(new_min_x, robot_states_[0] - 1.0);
+        new_max_x = std::max(new_max_x, robot_states_[0] + 1.0);
+        new_min_y = std::min(new_min_y, robot_states_[1] - 1.0);
+        new_max_y = std::max(new_max_y, robot_states_[1] + 1.0);
+    }
+    if (goal_received_) {
+        new_min_x = std::min(new_min_x, goal_x_ - 1.0);
+        new_max_x = std::max(new_max_x, goal_x_ + 1.0);
+        new_min_y = std::min(new_min_y, goal_y_ - 1.0);
+        new_max_y = std::max(new_max_y, goal_y_ + 1.0);
+    }
 
     // If this is the first time or the map has grown, update the boundaries
     bool is_first_setup = (min_x_ == 0 && max_x_ == 0 && min_y_ == 0 && max_y_ == 0);

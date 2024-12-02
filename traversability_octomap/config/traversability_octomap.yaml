@@ -9,7 +9,7 @@ beta_prior: 0.5       # Prior on traversability beta
 resolution: 0.2       # Octree resolution (m)
 block_depth: 1        # Test-data octree depth (see Wang & Englot ICRA 2016)
 
-min_range: 1.0        # Sensor min range (m)
+min_range: 0.5        # Sensor min range (m)
 max_range: 10.0       # Sensor max range (m)
 
 # Bounds on map height
@@ -18,11 +18,11 @@ max_z: 5.0
 
 # Kernel parameters
 sf2: 2.0                # Actually sigma_0 in sparse kernel
-ell: 0.6                # Length scale of the sparse kernel
+ell: 1.0                # Length scale of the sparse kernel
 
 # Sampling resolutions
 free_resolution: 3.25   # 6.5 for block depth 5, 3.25 for block depth 4, 13 for depth 6
-ds_resolution: 0.25     # Downsampling factor
+ds_resolution: 0.2     # Downsampling factor
 
 # Free/Occupied Thresholds
 free_thresh: 0.3

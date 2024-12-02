@@ -59,7 +59,7 @@ class MPPI(nn.Module):
         # resample noise each time we take an action; these can be done at the start
         noise = self.noise_dist.sample((B, self.K, self.T))
         
-        # Generate perturbed actions
+        # Generate perturbed actions        
         perturbed_action = self.U + noise
         perturbed_action[...,0] = torch.clamp(perturbed_action[...,0], min=self.u_min[0], max=self.u_max[0])
         perturbed_action[...,1] = torch.clamp(perturbed_action[...,1], min=self.u_min[1], max=self.u_max[1])

@@ -9,10 +9,12 @@ import skimage as ski
 import polylabel
 
 from torch.cuda.amp import autocast
+from skimage.segmentation import slic
 from sensor_msgs.msg import Image, CompressedImage
 
 # Import the SAM model
-from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+from sam2.build_sam import build_sam2
+from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
 
 # ChatGPT imports
 import base64
@@ -26,33 +28,39 @@ class LLMPredictor:
         self.image_resolution = rospy.get_param('~image_resolution', [336, 224])
         self.area_threshold = rospy.get_param('~area_threshold', 500)
         self.test_mode = rospy.get_param('~test_mode', True)
-        model_type = rospy.get_param('~model_type', 'vit_b')
+        model_type = rospy.get_param('~model_type', 'tiny')
 
         # Load the SAM model
-        if model_type == "vit_b":
-            sam_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam_vit_b_01ec64.pth"
-        elif model_type == "vit_l":
-            sam_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam_vit_l_0b3195.pth"
-        elif model_type == "vit_h":
-            sam_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam_vit_h_4b8939.pth"
+        if model_type == "tiny":
+            sam2_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam2.1_hiera_tiny.pt"
+            model_cfg = "configs/sam2.1/sam2.1_hiera_t.yaml"
+        elif model_type == "small":
+            sam2_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam2.1_hiera_small.pt"
+            model_cfg = "configs/sam2.1/sam2.1_hiera_s.yaml"
+        elif model_type == "large":
+            sam2_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam2.1_hiera_large.pt"
+            model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
+        else:
+            raise ValueError(f"Invalid model type: {model_type}")
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"LLM prediction node using device: {device}")
 
-        sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-        sam.to(device=device)
+        sam2 = build_sam2(model_cfg, sam2_checkpoint, device=device, apply_postprocessing=False)
+        sam2.to(device=device)
 
-        self.mask_generator = SamAutomaticMaskGenerator(
-            model                   = sam,
+        self.mask_generator = SAM2AutomaticMaskGenerator(
+            model                   = sam2,
             box_nms_thresh          = 0.7,
-            crop_nms_thresh         = 0.7,
-            crop_overlap_ratio      = 0.35,
-            points_per_side         = 8,
-            pred_iou_thresh         = 0.95,         # High confidence score
-            stability_score_thresh  = 0.9,          # Compensate a bit on stability to capture big masks
+            points_per_side         = 8,  
+            points_per_batch        = 128,  
+            pred_iou_thresh         = 0.95,     
+            stability_score_thresh  = 0.9, 
+            stability_score_offset  = 0.7,          
             crop_n_layers           = 1,
             crop_n_points_downscale_factor = 4,
-            min_mask_region_area    = 200,          # Requires open-cv to run post-processing
+            min_mask_region_area    = 300,
+            use_m2m = False,         
         )
 
         # Load the ChatGPT model
@@ -70,7 +78,7 @@ class LLMPredictor:
 
         rospy.spin()
 
-    def query_gpt(self, image_path):
+    def query_gpt(self, image):
         """
         Queries the GPT model with the image.
 
@@ -81,8 +89,9 @@ class LLMPredictor:
         - Ranks of the masks.
         """
         # Encode the image
-        with open(image_path, "rb") as image_file:
-            base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+        # with open(image_path, "rb") as image_file:
+        #     base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+        base64_image = base64.b64encode(cv2.imencode('.png', image)[1]).decode('utf-8')
        
         # Query the model
         response = self.client.chat.completions.create(
@@ -98,7 +107,8 @@ class LLMPredictor:
                         For example, traversability 0.0 represents obstacles and dangerous areas like trees, cars, and etc. \
                         Traversability 1.0 represents highly traversable areas like roads and flat terrains. \
                         Assume the image comes from a small wheeled robot. \
-                        The output should be the traversavbility values from region 1 to n without the reasoning, for example 0,0.5,1,..."},
+                        The output should be the traversavbility values from region 1 to n without the reasoning, formatted as a list, \
+                        for example [0,0.5,1,...]"},
                     {
                     "type": "image_url",
                     "image_url": {
@@ -131,23 +141,23 @@ class LLMPredictor:
 
         sorted_anns = sorted(anns, key=(lambda x: x['area']), reverse=True)[:10]
         
-        new_masks = []
-        while sorted_anns:
-            # Find overlapping masks
-            bitwise_or = [cv2.bitwise_and(ann['segmentation'].astype(np.uint8), sorted_anns[0]['segmentation'].astype(np.uint8)) for ann in sorted_anns]
-            any_overlap = np.array([np.any(a) for a in bitwise_or])
-            idx = np.where(any_overlap)[0]
+        # new_masks = []
+        # while sorted_anns:
+        #     # Find overlapping masks
+        #     bitwise_or = [cv2.bitwise_and(ann['segmentation'].astype(np.uint8), sorted_anns[0]['segmentation'].astype(np.uint8)) for ann in sorted_anns]
+        #     any_overlap = np.array([np.any(a) for a in bitwise_or])
+        #     idx = np.where(any_overlap)[0]
             
-            # Select the largest mask by area
-            areas = [sorted_anns[i]['area'] for i in idx]
-            largest_idx = idx[np.argmax(areas)]
-            new_masks.append(sorted_anns[largest_idx])
+        #     # Select the largest mask by area
+        #     areas = [sorted_anns[i]['area'] for i in idx]
+        #     largest_idx = idx[np.argmax(areas)]
+        #     new_masks.append(sorted_anns[largest_idx])
             
-            # Remove processed annotations
-            sorted_anns = [ann for i, ann in enumerate(sorted_anns) if i not in idx]
+        #     # Remove processed annotations
+        #     sorted_anns = [ann for i, ann in enumerate(sorted_anns) if i not in idx]
 
         rank_dict = {}
-        for i, ann in enumerate(new_masks):
+        for i, ann in enumerate(sorted_anns):
             m = ann['segmentation']
 
             # Apply the mask to the image
@@ -159,14 +169,27 @@ class LLMPredictor:
             largest_mask = (labeled_image == largest_region.label).astype(np.uint8)
 
             # Find contours in the mask
-            contours, _ = cv2.findContours(largest_mask * 255, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)   
+            contours, _ = cv2.findContours(largest_mask * 255, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
             if contours:
                 # Find the largest contour by area
                 largest_contour = max(contours, key=cv2.contourArea)
+                epsilon = 0.01 * cv2.arcLength(largest_contour, True)
+                approx_contour = cv2.approxPolyDP(largest_contour, epsilon, True)
+
+                rank_dict[i] = m
             
-                filtered = [list(map(lambda x: x[0], largest_contour))]
-                pole_of_inaccessibility = polylabel.polylabel(filtered, precision=1.0)
+                # # Step 1: Create an empty mask of same size as 'm'
+                # simplified_mask = np.zeros_like(m, dtype=np.uint8)
+
+                # # Step 2: Draw the simplified contour on this empty mask
+                # cv2.drawContours(simplified_mask, [approx_contour], -1, color=1, thickness=cv2.FILLED)
+
+                # # Step 3: Store this simplified boolean mask in rank_dict
+                # rank_dict[i] = simplified_mask.astype(bool)
+            
+                filtered = [list(map(lambda x: x[0], approx_contour))]
+                pole_of_inaccessibility = polylabel.polylabel(filtered, precision=10.0)
                 cX, cY = pole_of_inaccessibility
 
                 text = str(i + 1)
@@ -177,7 +200,6 @@ class LLMPredictor:
 
                 text_width, text_height = cv2.getTextSize(text, fontFace, fontScale, thickness)[0]
                 cv2.putText(image, text, (int(cX - text_width/2), int(cY + text_height/2)), fontFace, 1, fontColor, thickness, cv2.LINE_AA)
-                rank_dict[i] = m
 
         return rank_dict, image
 
@@ -199,17 +221,27 @@ class LLMPredictor:
         # Resize the image
         cv_image = cv2.resize(cv_image, self.image_resolution)
 
+        # time_start = time.time()
+        # # Get masks from the SAM model
+        # with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+        #     masks = self.mask_generator.generate(cv_image)
+        # print(f"Time taken for SAM: {time.time() - time_start}")
+
         time_start = time.time()
-        # Get masks from the SAM model
-        with torch.inference_mode(), torch.autocast("cuda"):
-            masks = self.mask_generator.generate(cv_image)
-        print(f"Time taken for SAM: {time.time() - time_start}")
+        masks = slic(cv_image, n_segments=10, compactness=5, sigma=1)
+        masks = [{'segmentation': masks == i, 'area': np.sum(masks == i)} for i in np.unique(masks)]
+        print(f"Time taken for SLIC: {time.time() - time_start}")
 
         time_start = time.time()
         # Add numbers to the masks
         rank_dict, image = self.add_numbers_to_masks(masks, cv_image)
-        cv2.imwrite("img.png",image)
         print(f"Time taken to add the numbers: {time.time() - time_start}")
+
+        # Query the GPT model
+        time_start = time.time()
+        ranks = self.query_gpt(image)
+        print('Ranks:', ranks)
+        print(f"Time taken for GPT: {time.time() - time_start}")
 
         # Resize the image to the original resolution
         image = cv2.resize(image, (original_resolution[1], original_resolution[0]))
@@ -228,15 +260,9 @@ class LLMPredictor:
         # Publish the annotated image
         self.debug_pub.publish(debug_msg)
 
-        time_start = time.time()
-        # Query the GPT model 
-        ranks = self.query_gpt("img.png")
-        print('Ranks:', ranks)
-        print(f"Time taken for GPT: {time.time() - time_start}")
-
         # Parse the ranks
         # ranked_list = list(map(float, ranks.split(',')))
-        ranked_list = re.split(';|,|\*|\n', ranks.replace(' ', ''))
+        ranked_list = re.split(';|,|\*|\n', ranks.replace(' ', '').replace('[', '').replace(']', ''))
         print('Ranked list:', ranked_list)
 
         # Create a traversability image
@@ -245,6 +271,13 @@ class LLMPredictor:
 
         for i, rank in enumerate(ranked_list):
             if i in rank_dict:
+                try:
+                    rank = float(rank)
+                except ValueError:
+                    rospy.logwarn(f"Invalid rank value: {rank}")
+                    rospy.logwarn("Skipping the image")
+                    return
+                
                 trav_img[rank_dict[i]] = rank
 
         # Resize the traversability image to the original resolution

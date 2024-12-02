@@ -130,6 +130,8 @@ void OctomapNode::callback(const boost::shared_ptr<const sensor_msgs::PointCloud
         sensor_msgs::PointCloud2 cloud_map;
         pcl_ros::transformPointCloud(cloud2map_transform.matrix().cast<float>(), *cloud, cloud_map);
 
+        ROS_INFO_STREAM("Cloud transformed");
+
         //pointer required for downsampling
         traversability_bki::PCLPointCloud pcl_cloud;
         pcl::fromROSMsg(cloud_map, pcl_cloud);

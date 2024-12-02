@@ -6,8 +6,8 @@ import numpy as np
 import rospy
 
 from grid_map_msgs.msg import GridMap
-from sensor_msgs.msg import PointCloud2
 from nav_msgs.msg import Path, Odometry
+from sensor_msgs.msg import PointCloud2, Joy
 from geometry_msgs.msg import TwistStamped, PoseStamped
 
 from mppi.mppi import MPPI
@@ -18,6 +18,7 @@ class TRAVERSABILITY_MPPI_NODE:
         # Define ROS topics
         cmd_topic       = rospy.get_param('~cmd_topic', 'cmd_vel')
         odom_topic      = rospy.get_param('~odom_topic', 'odom')
+        joy_topic       = rospy.get_param('~joy_topic', '/terrasentia/joy')
         # goal_topic      = rospy.get_param('~goal_topic', '/move_base_simple/goal')
         reference_topic = rospy.get_param('~reference_topic', 'planned_path')
         map_topic       = rospy.get_param('~map_topic', 'grid_map')
@@ -36,7 +37,9 @@ class TRAVERSABILITY_MPPI_NODE:
         robot_length = rospy.get_param('~robot_length', 0.5)
         robot_width = rospy.get_param('~robot_width', 0.3)
 
+        self.run_mppi = False
         self.publish_rollouts = True
+        self.previous_button_state = False
         
         self.dtype = torch.float
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -58,9 +61,9 @@ class TRAVERSABILITY_MPPI_NODE:
             u_min       = u_min,
             u_max       = u_max,
             Q           = [1.0, 1.0, 0.5],
-            Qf          = [2.0, 2.0, 0.5],
-            R           = [10.0, 0.1],
-            W           = [50.0, 0.001],
+            Qf          = [2.0, 2.0, 1.0],
+            R           = [50.0, 0.01],
+            W           = [200.0, 1.0],
             robot_length= robot_length,
             robot_width = robot_width
         ).to(self.device)
@@ -76,6 +79,7 @@ class TRAVERSABILITY_MPPI_NODE:
         }
 
         # Subscribers
+        rospy.Subscriber(joy_topic, Joy, self.joy_callback)
         rospy.Subscriber(odom_topic, Odometry, self.odom_callback, queue_size=1)
         # rospy.Subscriber(goal_topic, PoseStamped, self.reference_callback, queue_size=1)
         rospy.Subscriber(reference_topic, Path, self.reference_callback, queue_size=1)
@@ -107,7 +111,7 @@ class TRAVERSABILITY_MPPI_NODE:
         trav_map = copy.deepcopy(self.trav_map)
         grid_bounds = copy.deepcopy(self.grid_bounds)
 
-        if len(mpc_reference['x']) == 0:
+        if len(mpc_reference['x']) == 0 or not self.run_mppi:
             if self.verbose:
                 rospy.loginfo("TRAV-MPPI empty wps")
             
@@ -170,6 +174,20 @@ class TRAVERSABILITY_MPPI_NODE:
         # Find the closest point on the path to the current position
         distances = [np.hypot(px - self.current_pose['x'], py - self.current_pose['y']) for px, py in path]
         closest_index = np.argmin(distances)
+
+        if distances[-1] < 1.0:
+            if self.verbose:
+                print("Goal reached!")
+
+            mpc_reference = {
+                'x': [],
+                'y': [],
+                'theta': [0.0],
+                'v': [0.0],
+                'omega': [0.0]
+            }
+
+            return mpc_reference
 
         # Generate interpolated reference points
         horizon_length = self.N * self.reference_speed * self.dt
@@ -314,6 +332,14 @@ class TRAVERSABILITY_MPPI_NODE:
 
     #     # Now MPC can run
     #     self.ref_received = True
+
+    def joy_callback(self, msg):
+        # Check if the combination L2 + B is pressed
+        if msg.buttons[8] and msg.buttons[1] and not self.previous_button_state:
+            self.run_mppi = not self.run_mppi
+
+        # Update the previous button state
+        self.previous_button_state = msg.buttons[2]
 
 if __name__ == '__main__':
     rospy.init_node('traversability_mppi')
