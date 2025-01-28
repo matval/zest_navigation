@@ -18,7 +18,8 @@ RRTNode::RRTNode() :
     nh_.param("planner_viz_topic", planner_viz_topic, std::string("rrt_viz"));
     nh_.param("frame_id", frame_id_, std::string("map"));
     nh_.param("alpha1", alpha1_, 1.0);    
-    nh_.param("alpha2", alpha2_, 1.0);           
+    nh_.param("alpha2", alpha2_, 1.0);
+    nh_.param("traversability_threshold", traversability_threshold_, 0.10);   
     nh_.param("robot_length", robot_length_, 0.5); 
     nh_.param("robot_width", robot_width_, 0.3);   
     nh_.param("num_samples", num_samples_, 10);
@@ -109,11 +110,13 @@ bool RRTNode::isStateValid(const ob::State* state) {
 
     float traversability = grid_map_.at("traversability", index);
     float lambda = grid_map_.at("lambda", index);
-    const float traversability_threshold = 0.21f;
-    const float lambda_threshold = 2.05f;
+    const float unknown_lambda = 2.01f;
 
-    if (traversability < traversability_threshold && lambda < lambda_threshold)
-        return false;
+    if (lambda > unknown_lambda) {
+        if (traversability < traversability_threshold_) {
+            return false;
+        }
+    }
 
     return true;
 }

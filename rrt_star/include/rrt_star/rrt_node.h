@@ -147,6 +147,7 @@ private:
     bool goal_received_;                       ///< Flag indicating whether the goal position has been received.
     double alpha1_;                            ///< Weight for the traversability term in the RRT* cost function.
     double alpha2_;                            ///< Weight for the lambda term in the RRT* cost function.
+    double traversability_threshold_;          ///< Threshold value for traversability.
     double robot_length_;                      ///< Length of the robot.
     double robot_width_;                       ///< Width of the robot.
     int num_samples_;                          ///< Number of samples to take along the motion.
