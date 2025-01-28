@@ -4,10 +4,9 @@ frame_id: odom
 odom_topic: /terrasentia/dlio/odom_node/odom
 grid_map_topic: /terrasentia/octomap_node/traversability_map
 goal_topic: /terrasentia/goal
-alpha1: 200.0
-alpha2: 0.2
-# robot_length: 0.5
-# robot_width: 0.3
-num_samples: 50
+alpha1: 100.0
+alpha2: 1.0
+traversability_threshold: 0.10
 planning_frequency: 0.1
+num_samples: 10
 solver_time: 10.0

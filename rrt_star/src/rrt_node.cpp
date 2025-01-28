@@ -18,7 +18,8 @@ RRTNode::RRTNode() :
     nh_.param("planner_viz_topic", planner_viz_topic, std::string("rrt_viz"));
     nh_.param("frame_id", frame_id_, std::string("map"));
     nh_.param("alpha1", alpha1_, 1.0);    
-    nh_.param("alpha2", alpha2_, 1.0);           
+    nh_.param("alpha2", alpha2_, 1.0);
+    nh_.param("traversability_threshold", traversability_threshold_, 0.10);   
     nh_.param("robot_length", robot_length_, 0.5); 
     nh_.param("robot_width", robot_width_, 0.3);   
     nh_.param("num_samples", num_samples_, 10);
@@ -83,8 +84,9 @@ void RRTNode::setupOMPL() {
 
     // Set RRT* as the planner
     auto planner = std::make_shared<og::RRTstar>(omplSimpleSetup_->getSpaceInformation());
-    planner->setRange(1.0);  
-    planner->setRewireFactor(1.0); 
+    planner->setRange(2.0);  
+    planner->setRewireFactor(5.0); 
+    planner->setGoalBias(0.05);
 
     omplSimpleSetup_->setPlanner(planner);
 
@@ -102,33 +104,38 @@ bool RRTNode::isStateValid(const ob::State* state) {
         return false;
     }
 
+    grid_map::Position position(x, y);
+    grid_map::Index index;
+    grid_map_.getIndex(position, index);
+
+    float traversability = grid_map_.at("traversability", index);
+    float lambda = grid_map_.at("lambda", index);
+    
+    // const float unknown_lambda = 2.01f;
+    // if (lambda > unknown_lambda) {
+    //     if (traversability < traversability_threshold_) {
+    //         return false;
+    //     }
+    // }
+
+    if (traversability < traversability_threshold_) {
+        return false;
+    }
+
     return true;
 }
 
 void RRTNode::spin() {
     ros::Rate rate(planning_frequency_); 
 
-    // ros::Time last_planning_time = ros::Time::now();
-
     while (ros::ok()) {
         ros::spinOnce();  
-
-        // ros::Time current_time = ros::Time::now();
-        // ros::Duration time_since_last_plan = current_time - last_planning_time;
-
-        // Determine if it's time to replan based on frequency
-        // bool time_to_replan = time_since_last_plan.toSec() >= (1.0 / planning_frequency_);
 
         // Wait for goal
         if (!goal_received_ && !map_received_) {
             rate.sleep();
             continue;
         }
-
-        // Update the last planning time if replanning due to frequency
-        // if (time_to_replan) {
-        //     last_planning_time = current_time;
-        // }
 
         // Proceed with planning
         try {
@@ -195,10 +202,7 @@ void RRTNode::spin() {
                 alpha1_,
                 alpha2_,
                 robot_length_,
-                robot_width_,
-                num_samples_,
-                goal_x_,
-                goal_y_);
+                robot_width_);
 
             if (!combined_obj) {
                 ROS_ERROR("Failed to create combined optimization objective.");

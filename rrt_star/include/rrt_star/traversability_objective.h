@@ -2,6 +2,7 @@
 #define TRAVERSABILITY_OBJECTIVE_H
 
 #include <ompl/base/OptimizationObjective.h>
+#include <ompl/base/objectives/StateCostIntegralObjective.h>
 #include <grid_map_core/GridMap.hpp>
 #include <grid_map_core/Polygon.hpp>
 #include <ompl/base/spaces/SE2StateSpace.h>
@@ -10,7 +11,7 @@
 
 namespace ob = ompl::base;
 
-class TraversabilityObjective : public ob::OptimizationObjective {
+class TraversabilityObjective : public ob::StateCostIntegralObjective {
 public:
     TraversabilityObjective(
         const ob::SpaceInformationPtr &si,
@@ -18,59 +19,32 @@ public:
         double alpha1,             
         double alpha2,              
         double robot_length,
-        double robot_width,
-        unsigned int num_samples,        
-        double goal_x,
-        double goal_y)
-        : ob::OptimizationObjective(si),
-          grid_map_(gridMap),
-          alpha1_(alpha1),
-          alpha2_(alpha2),
-          robot_length_(robot_length),
-          robot_width_(robot_width),
-          num_samples_(num_samples),
-          goal_x_(goal_x),
-          goal_y_(goal_y) {}
+        double robot_width)
+        : ob::StateCostIntegralObjective(si, true), grid_map_(gridMap), alpha1_(alpha1),
+            alpha2_(alpha2), robot_length_(robot_length), robot_width_(robot_width) {
 
-    ob::Cost motionCost(const ob::State *s1, const ob::State *s2) const override {
-        std::vector<ob::State *> interp_states;
+            // Check if the layers exist in the grid map
+            if (!grid_map_.exists("traversability") || !grid_map_.exists("lambda")) {
+                std::cerr << "One or both layers do not exist in the grid map." << std::endl;
+            }
 
-        // Interpolate between s1 and s2
-        for (unsigned int i = 0; i <= num_samples_; ++i) {
-            ob::State *interpolated_state = si_->allocState();
-            si_->getStateSpace()->interpolate(s1, s2, static_cast<double>(i) / num_samples_, interpolated_state);
-            interp_states.push_back(interpolated_state);
+            // Get the maximum value of the "traversability" layer
+            maxTraversability_ = grid_map_["traversability"].maxCoeff();
+
+            // Get the maximum value of the "lambda" layer
+            maxLambda_ = grid_map_["lambda"].maxCoeff();
+
+            // Print the results
+            std::cout << "Maximum value in 'traversability' layer: " << maxTraversability_ << std::endl;
+            std::cout << "Maximum value in 'lambda' layer: " << maxLambda_ << std::endl;
         }
-
-        double total_cost = 0.0;
-
-        for (const auto *state : interp_states) {
-            total_cost += computeTraversabilityCost(state);
-        }
-
-        // Free the allocated states
-        for (auto *state : interp_states) {
-            si_->freeState(state);
-        }
-
-        return ob::Cost(total_cost);
-    }
 
     ob::Cost stateCost(const ob::State *s) const override {
-        const auto *se2state = s->as<ob::SE2StateSpace::StateType>();
-        double x = se2state->getX();
-        double y = se2state->getY();
-
-        // Compute Euclidean distance to the goal
-        double dx = x - goal_x_;
-        double dy = y - goal_y_;
-        double distance_to_goal = std::hypot(dx, dy);
-
-        return ob::Cost(distance_to_goal);
+        return computeTraversabilityCost(s);
     }
 
 private:
-    double computeTraversabilityCost(const ob::State *s) const {
+    ob::Cost computeTraversabilityCost(const ob::State *s) const {
         const auto *se2state = s->as<ob::SE2StateSpace::StateType>();
         double x = se2state->getX();
         double y = se2state->getY();
@@ -86,13 +60,10 @@ private:
         float min_lambda = getMinLambda(footprint);
 
         // Compute the cost using alpha1 and alpha2
-        double cost = alpha1_ * exp(-min_traversability * 10) + alpha2_ * exp(-(min_lambda - 2.0));
-        // double cost = -(alpha1_ * min_traversability + alpha2_ * min_lambda);
-        // double cost = alpha1_ * exp(-min_traversability) + alpha2_ * exp(-min_lambda);
+        // double cost = exp(-alpha1_ * min_traversability) + exp(-alpha2_ * (min_lambda - 2.0));
+        double cost = (maxTraversability_ - min_traversability) * alpha1_ + (maxLambda_ - min_lambda) * alpha2_;
 
-        // std::cout << "cost: " << cost << std::endl;
-
-        return cost;
+        return ob::Cost(cost);
     }
 
     std::vector<grid_map::Position> computeFootprint(double x, double y, double theta) const {
@@ -183,9 +154,8 @@ private:
     double alpha2_;             // Weight for lambda
     double robot_length_;
     double robot_width_;
-    unsigned int num_samples_;  // Number of samples along the motion
-    double goal_x_;
-    double goal_y_;
+    double maxTraversability_;
+    double maxLambda_;
 };
 
 ob::OptimizationObjectivePtr getCombinedObjective(
@@ -194,15 +164,12 @@ ob::OptimizationObjectivePtr getCombinedObjective(
     double alpha1,
     double alpha2,
     double robot_length,
-    double robot_width,
-    unsigned int num_samples,
-    double goal_x,
-    double goal_y) {
+    double robot_width) {
 
     auto traversabilityObj = std::make_shared<TraversabilityObjective>(
-        si, grid_map, alpha1, alpha2, robot_length, robot_width, num_samples, goal_x, goal_y);
+        si, grid_map, alpha1, alpha2, robot_length, robot_width);
 
-    return traversabilityObj;
+    return ob::OptimizationObjectivePtr(traversabilityObj);
 }
 
 #endif // TRAVERSABILITY_OBJECTIVE_H

@@ -60,10 +60,10 @@ class TRAVERSABILITY_MPPI_NODE:
             noise_sigma = noise_sigma,
             u_min       = u_min,
             u_max       = u_max,
-            Q           = [0.5, 0.5, 0.05],
-            Qf          = [1.0, 1.0, 0.05],
-            R           = [10.0, 0.01],
-            W           = [100.0, 1.0],
+            Q           = [1.0, 1.0, 0.1],
+            Qf          = [2.0, 2.0, 0.1],
+            R           = [50.0, 0.01],
+            W           = [200.0, 1.0],
             robot_length= robot_length,
             robot_width = robot_width
         ).to(self.device)

@@ -131,12 +131,12 @@ class KINE_MODEL(nn.Module):
         # aleatoric_cost = -aleatoric_uncertainty * self.W[0,0]
         # aleatoric_cost = torch.exp(-10 * aleatoric_uncertainty) * self.W[0,0]
 
-        min_cvar = torch.min(trav_cvar.flatten(), dim=0)[0]
-        aleatoric_cost = -torch.square(trav_cvar - min_cvar).to(dtype=torch.float16) * self.W[0,0]
+        # max_cvar = torch.max(trav_cvar.flatten(), dim=0)[0]
+        aleatoric_cost = torch.square(2 - trav_cvar).to(dtype=torch.float16) * self.W[0,0]
         aleatoric_cost = torch.clamp(aleatoric_cost, -10000.0, 10000.0)
 
         # Action conditioned on the epistemic uncertainty
-        epistemic_cost = torch.exp(-(epistemic_uncertainty-2.0) * self.W[1,1])
+        epistemic_cost = torch.exp((2.0 - epistemic_uncertainty) * self.W[1,1])
         epistemic_cost = torch.clamp(epistemic_cost, 0.0, 1.0)
         action_error = (action - reference[...,3:] * (1.0 - epistemic_cost))
         action_cost = torch.square(action_error) @ self.R
