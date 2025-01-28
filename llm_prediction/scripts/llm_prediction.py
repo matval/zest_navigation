@@ -95,8 +95,8 @@ class LLMPredictor:
        
         # Query the model
         response = self.client.chat.completions.create(
-            model="gpt-4o",
-            # model="gpt-4o-mini",
+            model="gpt-4o-2024-08-06",
+            # model="gpt-4o",
             messages=[
                 {
                 "role": "user",
@@ -104,11 +104,10 @@ class LLMPredictor:
                     {
                         "type": "text", "text": "In the image, analyze the numbered regions and assign traversability values for each region. \
                         The traversability values should be real numbers where 0 represents low traversability and 1 represents high traversability. \
-                        For example, traversability 0.0 represents obstacles and dangerous areas like trees, cars, and etc. \
-                        Traversability 1.0 represents highly traversable areas like roads and flat terrains. \
-                        Assume the image comes from a small wheeled robot. \
+                        For example, traversability 0.0 represents obstacles and dangerous areas like walls, trees, cars, and etc. \
+                        Traversability 1.0 represents highly traversable areas for a small wheeled robot, like roads and walkways. \
                         The output should be the traversavbility values from region 1 to n without the reasoning, formatted as a list, \
-                        for example [0,0.5,1,...]"},
+                        for example [0,0.5,1,0.3,...]"},
                     {
                     "type": "image_url",
                     "image_url": {

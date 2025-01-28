@@ -86,7 +86,7 @@ private:
         float min_lambda = getMinLambda(footprint);
 
         // Compute the cost using alpha1 and alpha2
-        double cost = exp(-alpha1_ * min_traversability) + exp(-alpha2_ * (min_lambda - 2.0));
+        double cost = alpha1_ * exp(-min_traversability * 10) + alpha2_ * exp(-(min_lambda - 2.0));
         // double cost = -(alpha1_ * min_traversability + alpha2_ * min_lambda);
         // double cost = alpha1_ * exp(-min_traversability) + alpha2_ * exp(-min_lambda);
 
@@ -149,6 +149,8 @@ private:
 
         // Initialize minimum value
         float min_value = std::numeric_limits<float>::max();
+        float sum_value = 0.0;
+        int count = 0;
 
         // Iterate over the cells within the bounding box
         for (double x = min_bound.x(); x <= max_bound.x(); x += resolution) {
@@ -156,18 +158,22 @@ private:
                 grid_map::Position pos(x, y);
                 if (polygon.isInside(pos) && grid_map_.isInside(pos)) {
                     float value = grid_map_.atPosition(layer_name, pos);
-                    if (value < min_value) {
-                        min_value = value;
-                    }
+
+                    sum_value += value;
+                    count += 1;
+                    // if (value < min_value) {
+                    //     min_value = value;
+                    // }
                 }
             }
         }
 
         // Handle case where no value was found
-        if (min_value == std::numeric_limits<float>::max()) {
-            // Return default value if none found within footprint
-            min_value = default_value;
-        }
+        // if (min_value == std::numeric_limits<float>::max()) {
+        //     // Return default value if none found within footprint
+        //     min_value = default_value;
+        // }
+        min_value = sum_value / count;
 
         return min_value;
     }

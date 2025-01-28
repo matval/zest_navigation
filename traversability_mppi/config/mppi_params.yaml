@@ -8,12 +8,12 @@ reference_topic: /terrasentia/rrt_node/planned_path
 map_topic: /terrasentia/octomap_node/traversability_map
 
 # MPPI parameters
-horizon: 20
+horizon: 30
 num_samples: 1024
 delta_time: 0.5
-temperature: 0.01
-reference_speed: 0.5
+gamma: 0.01
+reference_speed: 0.4
 u_min: [-0.2, -3.0] 
-u_max: [0.6, 3.0]
+u_max: [0.4, 3.0]
 noise_mu: [0.2, 0.0]
-noise_sigma: [0.5, 1.5]
+noise_sigma: [0.3, 0.8]
