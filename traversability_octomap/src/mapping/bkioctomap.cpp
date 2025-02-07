@@ -236,8 +236,13 @@ namespace traversability_bki
                 if (bgkl == bgkl_arr.end())
                     continue;
 
-               	vector<vector<float>> ybars;
-		        bgkl->second->predict(xs, ybars);
+                vector<vector<float>> ybars;
+                #ifdef OPENMP
+                #pragma omp critical(bgkl_predict)
+                #endif
+                {
+                    bgkl->second->predict(xs, ybars);
+                }
 
                 int j = 0;
                 for (auto leaf_it = block->begin_leaf(); leaf_it != block->end_leaf(); ++leaf_it, ++j)
