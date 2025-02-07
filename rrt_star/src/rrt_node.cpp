@@ -85,7 +85,7 @@ void RRTNode::setupOMPL() {
     // Set RRT* as the planner
     auto planner = std::make_shared<og::RRTstar>(omplSimpleSetup_->getSpaceInformation());
     planner->setRange(2.0);  
-    planner->setRewireFactor(1.0); 
+    planner->setRewireFactor(5.0); 
     planner->setGoalBias(0.05);
 
     omplSimpleSetup_->setPlanner(planner);
@@ -110,12 +110,16 @@ bool RRTNode::isStateValid(const ob::State* state) {
 
     float traversability = grid_map_.at("traversability", index);
     float lambda = grid_map_.at("lambda", index);
-    const float unknown_lambda = 2.01f;
+    
+    // const float unknown_lambda = 2.01f;
+    // if (lambda > unknown_lambda) {
+    //     if (traversability < traversability_threshold_) {
+    //         return false;
+    //     }
+    // }
 
-    if (lambda > unknown_lambda) {
-        if (traversability < traversability_threshold_) {
-            return false;
-        }
+    if (traversability < traversability_threshold_) {
+        return false;
     }
 
     return true;

@@ -20,12 +20,24 @@ public:
         double alpha2,              
         double robot_length,
         double robot_width)
-        : ob::StateCostIntegralObjective(si, true),
-          grid_map_(gridMap),
-          alpha1_(alpha1),
-          alpha2_(alpha2),
-          robot_length_(robot_length),
-          robot_width_(robot_width) {}
+        : ob::StateCostIntegralObjective(si, true), grid_map_(gridMap), alpha1_(alpha1),
+            alpha2_(alpha2), robot_length_(robot_length), robot_width_(robot_width) {
+
+            // Check if the layers exist in the grid map
+            if (!grid_map_.exists("traversability") || !grid_map_.exists("lambda")) {
+                std::cerr << "One or both layers do not exist in the grid map." << std::endl;
+            }
+
+            // Get the maximum value of the "traversability" layer
+            maxTraversability_ = grid_map_["traversability"].maxCoeff();
+
+            // Get the maximum value of the "lambda" layer
+            maxLambda_ = grid_map_["lambda"].maxCoeff();
+
+            // Print the results
+            std::cout << "Maximum value in 'traversability' layer: " << maxTraversability_ << std::endl;
+            std::cout << "Maximum value in 'lambda' layer: " << maxLambda_ << std::endl;
+        }
 
     ob::Cost stateCost(const ob::State *s) const override {
         return computeTraversabilityCost(s);
@@ -48,7 +60,8 @@ private:
         float min_lambda = getMinLambda(footprint);
 
         // Compute the cost using alpha1 and alpha2
-        double cost = exp(-alpha1_ * min_traversability) + exp(-alpha2_ * (min_lambda - 2.0));
+        // double cost = exp(-alpha1_ * min_traversability) + exp(-alpha2_ * (min_lambda - 2.0));
+        double cost = (maxTraversability_ - min_traversability) * alpha1_ + (maxLambda_ - min_lambda) * alpha2_;
 
         return ob::Cost(cost);
     }
@@ -107,6 +120,8 @@ private:
 
         // Initialize minimum value
         float min_value = std::numeric_limits<float>::max();
+        float sum_value = 0.0;
+        int count = 0;
 
         // Iterate over the cells within the bounding box
         for (double x = min_bound.x(); x <= max_bound.x(); x += resolution) {
@@ -114,18 +129,22 @@ private:
                 grid_map::Position pos(x, y);
                 if (polygon.isInside(pos) && grid_map_.isInside(pos)) {
                     float value = grid_map_.atPosition(layer_name, pos);
-                    if (value < min_value) {
-                        min_value = value;
-                    }
+
+                    sum_value += value;
+                    count += 1;
+                    // if (value < min_value) {
+                    //     min_value = value;
+                    // }
                 }
             }
         }
 
         // Handle case where no value was found
-        if (min_value == std::numeric_limits<float>::max()) {
-            // Return default value if none found within footprint
-            min_value = default_value;
-        }
+        // if (min_value == std::numeric_limits<float>::max()) {
+        //     // Return default value if none found within footprint
+        //     min_value = default_value;
+        // }
+        min_value = sum_value / count;
 
         return min_value;
     }
@@ -135,6 +154,8 @@ private:
     double alpha2_;             // Weight for lambda
     double robot_length_;
     double robot_width_;
+    double maxTraversability_;
+    double maxLambda_;
 };
 
 ob::OptimizationObjectivePtr getCombinedObjective(

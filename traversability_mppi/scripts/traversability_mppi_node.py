@@ -28,7 +28,7 @@ class TRAVERSABILITY_MPPI_NODE:
         self.N = rospy.get_param('~horizon', 20)
         self.dt = rospy.get_param('~delta_time', 0.2)
         num_samples = rospy.get_param('~num_samples', 1000)
-        gamma = rospy.get_param('~temperature', 1.0)
+        gamma = rospy.get_param('~gamma', 1.0)
         noise_mu = rospy.get_param('~noise_mu', [0.0, 0.0])
         noise_sigma = rospy.get_param('~noise_sigma', [0.4, 1.0])
         u_min = rospy.get_param('~u_min', [-1.0, -3.0])
@@ -60,8 +60,8 @@ class TRAVERSABILITY_MPPI_NODE:
             noise_sigma = noise_sigma,
             u_min       = u_min,
             u_max       = u_max,
-            Q           = [1.0, 1.0, 0.5],
-            Qf          = [2.0, 2.0, 1.0],
+            Q           = [1.0, 1.0, 0.1],
+            Qf          = [2.0, 2.0, 0.1],
             R           = [50.0, 0.01],
             W           = [200.0, 1.0],
             robot_length= robot_length,
@@ -149,8 +149,6 @@ class TRAVERSABILITY_MPPI_NODE:
             actions = a_hat[0].cpu().detach().numpy()
             probs = probs[0].cpu().detach().numpy()
             travs = travs[0].cpu().detach().numpy()
-
-            print('actions:', actions)
 
             # Publish command
             mpc_cmd = TwistStamped()

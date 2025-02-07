@@ -46,22 +46,23 @@ class LLMPredictor:
         device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"LLM prediction node using device: {device}")
 
-        sam2 = build_sam2(model_cfg, sam2_checkpoint, device=device, apply_postprocessing=False)
-        sam2.to(device=device)
+        if False:
+            sam2 = build_sam2(model_cfg, sam2_checkpoint, device=device, apply_postprocessing=False)
+            sam2.to(device=device)
 
-        self.mask_generator = SAM2AutomaticMaskGenerator(
-            model                   = sam2,
-            box_nms_thresh          = 0.7,
-            points_per_side         = 8,  
-            points_per_batch        = 128,  
-            pred_iou_thresh         = 0.95,     
-            stability_score_thresh  = 0.9, 
-            stability_score_offset  = 0.7,          
-            crop_n_layers           = 1,
-            crop_n_points_downscale_factor = 4,
-            min_mask_region_area    = 300,
-            use_m2m = False,         
-        )
+            self.mask_generator = SAM2AutomaticMaskGenerator(
+                model                   = sam2,
+                box_nms_thresh          = 0.7,
+                points_per_side         = 8,  
+                points_per_batch        = 128,  
+                pred_iou_thresh         = 0.95,     
+                stability_score_thresh  = 0.9, 
+                stability_score_offset  = 0.7,          
+                crop_n_layers           = 1,
+                crop_n_points_downscale_factor = 4,
+                min_mask_region_area    = 300,
+                use_m2m = False,         
+            )
 
         # Load the ChatGPT model
         key_file = rospkg.RosPack().get_path('llm_prediction') + '/../api_key.txt'
@@ -95,8 +96,8 @@ class LLMPredictor:
        
         # Query the model
         response = self.client.chat.completions.create(
-            model="gpt-4o",
-            # model="gpt-4o-mini",
+            model="gpt-4o-2024-08-06",
+            # model="gpt-4o",
             messages=[
                 {
                 "role": "user",
@@ -104,11 +105,10 @@ class LLMPredictor:
                     {
                         "type": "text", "text": "In the image, analyze the numbered regions and assign traversability values for each region. \
                         The traversability values should be real numbers where 0 represents low traversability and 1 represents high traversability. \
-                        For example, traversability 0.0 represents obstacles and dangerous areas like trees, cars, and etc. \
-                        Traversability 1.0 represents highly traversable areas like roads and flat terrains. \
-                        Assume the image comes from a small wheeled robot. \
+                        For example, traversability 0.0 represents obstacles and dangerous areas like walls, trees, cars, and etc. \
+                        Traversability 1.0 represents highly traversable areas for a small wheeled robot, like roads and walkways. \
                         The output should be the traversavbility values from region 1 to n without the reasoning, formatted as a list, \
-                        for example [0,0.5,1,...]"},
+                        for example [0,0.5,1,0.3,...]"},
                     {
                     "type": "image_url",
                     "image_url": {

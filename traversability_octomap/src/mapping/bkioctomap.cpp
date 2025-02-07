@@ -250,11 +250,11 @@ namespace traversability_bki
                     // Get current node
                     TraversabilityOcTreeNode &node = leaf_it.get_node();
                     
-                    std::cout << "Before update. ybars[j][2]: " << ybars[j][2] << std::endl;
+                    // std::cout << "Before update. ybars[j][2]: " << ybars[j][2] << std::endl;
                     // Apply the update step
                     if (ybars[j][2] > 0.001f)
                         node.update(ybars[j]);
-                    std::cout << "After update." << std::endl;
+                    // std::cout << "After update." << std::endl;
                 }
             }
         }
