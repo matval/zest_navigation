@@ -212,14 +212,16 @@ namespace traversability_bki
         for (int i = 0; i < test_blocks.size(); ++i)
         {
             BlockHashKey key = test_blocks[i];
+            // Lookup inside critical section: concurrent emplace can rehash block_arr.
+            Block *block;
 #ifdef OPENMP
 #pragma omp critical
 #endif
             {
                 if (block_arr.find(key) == block_arr.end())
                     block_arr.emplace(key, new Block(hash_key_to_block(key)));
+                block = block_arr[key];
             };
-            Block *block = block_arr[key];
             vector<float> xs;
             for (auto leaf_it = block->begin_leaf(); leaf_it != block->end_leaf(); ++leaf_it)
             {
