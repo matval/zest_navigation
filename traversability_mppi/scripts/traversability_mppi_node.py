@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import copy
+from threading import Lock
 import torch
 import numpy as np
 
@@ -9,6 +10,7 @@ from grid_map_msgs.msg import GridMap
 from nav_msgs.msg import Path, Odometry
 from sensor_msgs.msg import PointCloud2, Joy
 from geometry_msgs.msg import TwistStamped, PoseStamped
+from std_srvs.srv import SetBool, SetBoolResponse
 
 from mppi.mppi import MPPI
 from mppi.utils import visualize_rollouts, mppi_path_msg, generate_interpolated_reference
@@ -23,6 +25,9 @@ class TRAVERSABILITY_MPPI_NODE:
         reference_topic = rospy.get_param('~reference_topic', 'planned_path')
         map_topic       = rospy.get_param('~map_topic', 'grid_map')
         self.verbose    = rospy.get_param('~verbose', False)
+        self.enable_mode = rospy.get_param('~enable_mode', 'joystick')
+        if self.enable_mode not in ('joystick', 'service'):
+            raise ValueError("enable_mode must be 'joystick' or 'service'")
 
         # Load configuration params
         self.N = rospy.get_param('~horizon', 20)
@@ -40,6 +45,8 @@ class TRAVERSABILITY_MPPI_NODE:
         self.run_mppi = False
         self.publish_rollouts = True
         self.previous_button_state = False
+        self.enable_lock = Lock()
+        self.enable_generation = 0
         
         self.dtype = torch.float
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -79,7 +86,6 @@ class TRAVERSABILITY_MPPI_NODE:
         }
 
         # Subscribers
-        rospy.Subscriber(joy_topic, Joy, self.joy_callback)
         rospy.Subscriber(odom_topic, Odometry, self.odom_callback, queue_size=1)
         # rospy.Subscriber(goal_topic, PoseStamped, self.reference_callback, queue_size=1)
         rospy.Subscriber(reference_topic, Path, self.reference_callback, queue_size=1)
@@ -96,6 +102,11 @@ class TRAVERSABILITY_MPPI_NODE:
             self.pub_rollouts = rospy.Publisher('mppi_rollouts', PointCloud2, queue_size=1)
 
         self.warmup()
+
+        if self.enable_mode == 'joystick':
+            self.joy_sub = rospy.Subscriber(joy_topic, Joy, self.joy_callback)
+        else:
+            self.enable_service = rospy.Service('~set_enabled', SetBool, self.set_enabled_callback)
 
         # Set loop rate
         rate = rospy.Rate(50)
@@ -115,6 +126,12 @@ class TRAVERSABILITY_MPPI_NODE:
         print('MPPI warmup done')
 
     def run_navigation(self):
+        with self.enable_lock:
+            if not self.run_mppi:
+                self.publish_stop()
+                return
+            enable_generation = self.enable_generation
+
         # Run only when a new reference and map arrives
         if not self.ref_received or not self.trav_received or not self.odom_received:
             return
@@ -124,7 +141,7 @@ class TRAVERSABILITY_MPPI_NODE:
         trav_map = self.trav_map
         grid_bounds = copy.deepcopy(self.grid_bounds)
 
-        if len(mpc_reference['x']) == 0 or not self.run_mppi:
+        if len(mpc_reference['x']) == 0:
             if self.verbose:
                 rospy.loginfo("TRAV-MPPI empty wps")
             
@@ -166,7 +183,9 @@ class TRAVERSABILITY_MPPI_NODE:
             mpc_cmd.header.stamp = rospy.Time.now()
             mpc_cmd.twist.linear.x = actions[0,0]
             mpc_cmd.twist.angular.z = actions[0,1]
-            self.pub_cmd.publish(mpc_cmd)
+            with self.enable_lock:
+                if self.run_mppi and self.enable_generation == enable_generation:
+                    self.pub_cmd.publish(mpc_cmd)
 
             if self.publish_rollouts:
                 rollout_msg = visualize_rollouts(rollouts, travs[...,0], odom['z'], frame_id="odom")
@@ -342,13 +361,31 @@ class TRAVERSABILITY_MPPI_NODE:
     #     # Now MPC can run
     #     self.ref_received = True
 
-    def joy_callback(self, msg):
-        # Check if the combination L2 + B is pressed
-        if msg.buttons[8] and msg.buttons[1] and not self.previous_button_state:
-            self.run_mppi = not self.run_mppi
+    def publish_stop(self):
+        command = TwistStamped()
+        command.header.stamp = rospy.Time.now()
+        self.pub_cmd.publish(command)
 
-        # Update the previous button state
-        self.previous_button_state = msg.buttons[2]
+    def set_enabled(self, enabled):
+        # Caller holds enable_lock, also used around nonzero command publication.
+        if self.run_mppi != enabled:
+            self.enable_generation += 1
+        self.run_mppi = enabled
+        if not enabled:
+            self.publish_stop()
+
+    def set_enabled_callback(self, request):
+        with self.enable_lock:
+            self.set_enabled(request.data)
+        return SetBoolResponse(success=True, message="MPPI enabled" if request.data else "MPPI disabled")
+
+    def joy_callback(self, msg):
+        # Toggle once per press of the existing L2 + B combination.
+        pressed = len(msg.buttons) > 8 and bool(msg.buttons[8] and msg.buttons[1])
+        with self.enable_lock:
+            if pressed and not self.previous_button_state:
+                self.set_enabled(not self.run_mppi)
+            self.previous_button_state = pressed
 
 if __name__ == '__main__':
     rospy.init_node('traversability_mppi')

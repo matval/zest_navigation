@@ -84,3 +84,9 @@ To use the traversability package on the Terrasentia, run
 ```shell
 roslaunch llm_prediction run_zest_terrasentia.launch
 ```
+
+## MPPI enablement
+
+MPPI starts disabled. Set the controller's private `~enable_mode` parameter to `service` for terminal control through its private `~set_enabled` service (`std_srvs/SetBool`): `data: true` enables motion and `data: false` disables it and publishes zero velocity. This is not a hardware emergency stop.
+
+The default `joystick` mode subscribes to `sensor_msgs/Joy`; buttons 8 + 1 toggle once per press. The enable service is unavailable in joystick mode.
