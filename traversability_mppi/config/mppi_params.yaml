@@ -1,11 +1,15 @@
 # This file contains the parameters for the MPPI algorithm
 
 # ROS topic names
-cmd_topic: /terrasentia/cmd_vel
-odom_topic: /terrasentia/dlio/odom_node/odom
+cmd_topic: /cmd_vel
+odom_topic: /odom
 # goal_topic: /move_base_simple/goal
-reference_topic: /terrasentia/rrt_node/planned_path
-map_topic: /terrasentia/octomap_node/traversability_map
+reference_topic: /zest/rrt_node/planned_path
+map_topic: /zest/octomap_node/traversability_map
+
+# Enable source: joystick or service. Both start with motion disabled.
+enable_mode: joystick
+joy_topic: /joy
 
 # MPPI parameters
 horizon: 30

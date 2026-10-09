@@ -1,0 +1,85 @@
+<launch>
+    <!-- Robot-specific boundary topics -->
+    <arg name="namespace"          default="zest"                                  doc="Namespace for all Zest nodes and derived internal topics"/>
+    <arg name="image_topic"        default="/camera/rgb/image_rect_color/compressed" doc="Input sensor_msgs/CompressedImage RGB topic"/>
+    <arg name="pointcloud_topic"   default="/lidar/points"                         doc="Input sensor_msgs/PointCloud2 topic"/>
+    <arg name="odom_topic"         default="/odom"                                 doc="Input nav_msgs/Odometry topic (frame must be odom)"/>
+    <arg name="cmd_topic"          default="/cmd_vel"                              doc="Output geometry_msgs/TwistStamped command topic"/>
+    <arg name="goal_topic"         default="/move_base_simple/goal"                doc="Input geometry_msgs/PoseStamped goal topic"/>
+    <arg name="joy_topic"          default="/joy"                                  doc="Input sensor_msgs/Joy topic (enable_mode:=joystick)"/>
+
+    <!-- Behavior and calibration -->
+    <arg name="enable_mode"        default="joystick"                              doc="MPPI enable source: joystick or service"/>
+    <arg name="camera_params_file" default="$(find image_projection)/cfg/llm_params.yaml" doc="Camera intrinsics/extrinsics YAML"/>
+    <arg name="rviz_config"        default="$(find image_projection)/rviz/lidar_camera.rviz" doc="RViz configuration file"/>
+    <arg name="use_sim_time"       default="false"                                 doc="Use /clock (set true when replaying a bag)"/>
+    <arg name="rviz"               default="false"                                 doc="Start RViz"/>
+
+    <!-- Python virtualenv -->
+    <arg name="venv" value="$(find llm_prediction)/../env/bin/python3"/>
+
+    <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+
+    <group ns="$(arg namespace)">
+        <!-- Traversability prediction from the RGB image -->
+        <node pkg="llm_prediction" type="llm_prediction.py" name="llm_prediction" output="screen" launch-prefix="$(arg venv)">
+            <rosparam file="$(find llm_prediction)/config/config.yaml" command="load"/>
+            <param name="input_topic"  value="$(arg image_topic)"/>
+            <param name="output_topic" value="/$(arg namespace)/traversability_image"/>
+        </node>
+
+        <!-- Camera to lidar projection -->
+        <include file="$(find image_projection)/launch/projection.launch">
+            <arg name="image_topic"      value="/$(arg namespace)/traversability_image"/>
+            <arg name="pointcloud_topic" value="$(arg pointcloud_topic)"/>
+            <arg name="params_file"      value="$(arg camera_params_file)"/>
+        </include>
+
+        <!-- Traversability octomap -->
+        <node pkg="traversability_octomap" type="octomap_node" name="octomap_node" output="log">
+            <rosparam file="$(find traversability_octomap)/config/traversability_octomap.yaml" command="load"/>
+            <param name="pointcloud_topic" value="/$(arg namespace)/projection_node/traversability_cloud"/>
+            <param name="odom_topic"       value="$(arg odom_topic)"/>
+            <param name="map_topic"        value="/$(arg namespace)/octomap_node/traversability_cells"/>
+            <param name="grid_map_topic"   value="/$(arg namespace)/octomap_node/traversability_map"/>
+        </node>
+
+        <!-- RRT* path planner -->
+        <node pkg="rrt_star" type="rrt_node" name="rrt_node" output="screen">
+            <rosparam file="$(find rrt_star)/config/rrt_params.yaml" command="load"/>
+            <param name="odom_topic"         value="$(arg odom_topic)"/>
+            <param name="grid_map_topic"     value="/$(arg namespace)/octomap_node/traversability_map"/>
+            <param name="goal_topic"         value="$(arg goal_topic)"/>
+            <param name="path_topic"         value="/$(arg namespace)/rrt_node/planned_path"/>
+            <param name="planner_viz_topic"  value="/$(arg namespace)/rrt_node/rrt_viz"/>
+        </node>
+
+        <!-- MPPI controller -->
+        <node pkg="traversability_mppi" type="traversability_mppi_node.py" name="traversability_mppi_node" output="screen" launch-prefix="$(arg venv)">
+            <rosparam file="$(find traversability_mppi)/config/mppi_params.yaml" command="load"/>
+            <param name="cmd_topic"       value="$(arg cmd_topic)"/>
+            <param name="odom_topic"      value="$(arg odom_topic)"/>
+            <param name="reference_topic" value="/$(arg namespace)/rrt_node/planned_path"/>
+            <param name="map_topic"       value="/$(arg namespace)/octomap_node/traversability_map"/>
+            <param name="joy_topic"       value="$(arg joy_topic)"/>
+            <param name="enable_mode"     value="$(arg enable_mode)"/>
+        </node>
+    </group>
+
+    <!-- RViz: map default display topics onto the configured namespace and driver topics -->
+    <node if="$(arg rviz)" pkg="rviz" type="rviz" name="rviz" args="-d $(arg rviz_config)">
+        <remap from="/zest/traversability_image"                    to="/$(arg namespace)/traversability_image"/>
+        <remap from="/zest/projection_node/traversability_cloud"    to="/$(arg namespace)/projection_node/traversability_cloud"/>
+        <remap from="/zest/octomap_node/traversability_cells"       to="/$(arg namespace)/octomap_node/traversability_cells"/>
+        <remap from="/zest/octomap_node/traversability_map"         to="/$(arg namespace)/octomap_node/traversability_map"/>
+        <remap from="/zest/rrt_node/planned_path"                   to="/$(arg namespace)/rrt_node/planned_path"/>
+        <remap from="/zest/rrt_node/rrt_viz"                        to="/$(arg namespace)/rrt_node/rrt_viz"/>
+        <remap from="/zest/numbered_image"                          to="/$(arg namespace)/numbered_image"/>
+        <remap from="/zest/mppi_path"                               to="/$(arg namespace)/mppi_path"/>
+        <remap from="/zest/mppi_reference"                          to="/$(arg namespace)/mppi_reference"/>
+        <remap from="/zest/mppi_rollouts"                           to="/$(arg namespace)/mppi_rollouts"/>
+        <remap from="/odom"                                         to="$(arg odom_topic)"/>
+        <remap from="/move_base_simple/goal"                        to="$(arg goal_topic)"/>
+        <remap from="/camera/rgb/image_rect_color/compressed"       to="$(arg image_topic)"/>
+    </node>
+</launch>

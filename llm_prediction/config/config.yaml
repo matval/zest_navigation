@@ -1,6 +1,6 @@
 # config.yaml
 enable_debug: true
-input_topic: "/terrasentia/zed2/zed_node/rgb/image_rect_color/compressed"
-output_topic: "/terrasentia/traversability_map"
+input_topic: "/camera/rgb/image_rect_color/compressed"
+output_topic: "/zest/traversability_image"
 image_resolution: [336, 224]
 area_threshold: 300

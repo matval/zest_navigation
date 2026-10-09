@@ -1,62 +1,28 @@
-<!-- load_params.launch -->
 <launch>
-    <param name="/use_sim_time" value="true"/>
+    <arg name="namespace"          default="zest"/>
+    <arg name="image_topic"        default="/camera/rgb/image_rect_color/compressed"/>
+    <arg name="pointcloud_topic"   default="/lidar/points"/>
+    <arg name="odom_topic"         default="/odom"/>
+    <arg name="cmd_topic"          default="/cmd_vel"/>
+    <arg name="goal_topic"         default="/move_base_simple/goal"/>
+    <arg name="joy_topic"          default="/joy"/>
+    <arg name="enable_mode"        default="joystick" doc="MPPI enable source: joystick or service"/>
+    <arg name="camera_params_file" default="$(find image_projection)/cfg/llm_params.yaml"/>
+    <arg name="rviz_config"        default="$(find image_projection)/rviz/lidar_camera.rviz"/>
 
-    <group ns="terrasentia">
-        <!-- Use python virtualenv -->
-        <arg name="venv" value="$(find llm_prediction)/../env/bin/python3" />        
-
-        <!-- Start the prediction node -->
-        <node pkg="llm_prediction" type="llm_prediction.py" name="llm_prediction" output="screen" launch-prefix="$(arg venv)" >
-            <rosparam file="$(find llm_prediction)/config/config.yaml" command="load" />
-            <param name="input_topic" value="/terrasentia/zed2/zed_node/rgb/image_rect_color/compressed"/>
-            <param name="output_topic" value="/terrasentia/traversability_map"/>
-        </node>
-
-        <!-- Start the mock prediction node -->
-        <!-- <node pkg="octomap_utils" type="image_transform.py" name="trav_images" output="log"/> -->
-
-        <!-- Start WayFast for traversability prediction -->
-        <!-- <node pkg="octomap_utils" type="wayfast_node.py" name="wayfast" output="screen">
-            <param name="model_path" value="$(find octomap_utils)/checkpoints/best_wayfast.pth"/>
-        </node> -->
-
-        <!-- Start the camera to lidar projection node -->
-        <include file="$(find image_projection)/launch/vlp16_projection.launch">
-            <arg name="image_topic"      value="/terrasentia/traversability_map"/>
-            <arg name="pointcloud_topic" value="/terrasentia/velodyne_points"/>
-            <arg name="params_file"      value="$(find image_projection)/cfg/llm_params.yaml"/>
-        </include>
-
-        <!-- Start the traversability octomap node -->
-        <node pkg="traversability_octomap" type="octomap_node" name="octomap_node" output="log">
-            <rosparam file="$(find traversability_octomap)/config/traversability_octomap.yaml" command="load" />
-            <param name="pointcloud_topic"  value="/terrasentia/projection_node/traversability_cloud"/>
-            <param name="odom_topic"        value="/terrasentia/dlio/odom_node/odom"/>
-        </node>
-
-        <!--Start the LA3DM BGKL node -->
-        <!-- <node pkg="la3dm" type="bgkloctomap_server" name="la3dm_server" output="screen">
-            <rosparam file="$(find la3dm)/config/bgkloctomap_large_map.yaml" command="load"/>
-        </node> -->
-
-        <!--Start the LA3DM BGK node -->
-        <!-- <node pkg="la3dm" type="bgkoctomap_server" name="la3dm_server" output="screen">
-            <rosparam file="$(find la3dm)/config/bgkoctomap_large_map.yaml" command="load"/>
-        </node> -->
-
-        <!-- Start the path planning node -->
-        <node pkg="rrt_star" type="rrt_node" name="rrt_node" output="screen">
-            <rosparam file="$(find rrt_star)/config/rrt_params.yaml" command="load" />
-            <param name="goal_topic"        value="/move_base_simple/goal"/>
-        </node>
-
-        <!-- Start the MPPI controller node -->
-        <node pkg="traversability_mppi" type="traversability_mppi_node.py" name="traversability_mppi_node" output="screen" >
-            <rosparam file="$(find traversability_mppi)/config/mppi_params.yaml" command="load" />
-        </node>
-
-        <!-- rviz- -->
-        <node type="rviz" name="rviz" pkg="rviz" args="-d $(find image_projection)/rviz/lidar_camera.rviz" />
-    </group>
+    <!-- Bag replay: simulated time and RViz are always on -->
+    <include file="$(find llm_prediction)/launch/run_zest.launch">
+        <arg name="namespace"          value="$(arg namespace)"/>
+        <arg name="image_topic"        value="$(arg image_topic)"/>
+        <arg name="pointcloud_topic"   value="$(arg pointcloud_topic)"/>
+        <arg name="odom_topic"         value="$(arg odom_topic)"/>
+        <arg name="cmd_topic"          value="$(arg cmd_topic)"/>
+        <arg name="goal_topic"         value="$(arg goal_topic)"/>
+        <arg name="joy_topic"          value="$(arg joy_topic)"/>
+        <arg name="enable_mode"        value="$(arg enable_mode)"/>
+        <arg name="camera_params_file" value="$(arg camera_params_file)"/>
+        <arg name="rviz_config"        value="$(arg rviz_config)"/>
+        <arg name="use_sim_time"       value="true"/>
+        <arg name="rviz"               value="true"/>
+    </include>
 </launch>
