@@ -1,39 +1,39 @@
 # TraversabilityBKIOctoMap config
 
-# Prior settings
-mean_prior: 0.5       # Prior on traversability mean
-lambda_prior: 2.01    # Prior on traversability lambda
-beta_prior: 0.5       # Prior on traversability beta
+# Traversability priors
+mean_prior: 0.5         # Prior traversability mean in [0, 1]
+lambda_prior: 2.01      # Prior evidence weight / Student-t dof; > 1 for CVaR
+beta_prior: 0.5         # Prior traversability variance scale
 
-# Octree parameter
-resolution: 0.1       # Octree resolution (m)
-block_depth: 1        # Test-data octree depth (see Wang & Englot ICRA 2016)
+# Octree geometry
+resolution: 0.1         # Smallest voxel edge and grid cell size (m)
+block_depth: 1          # Octree levels per block, >= 1; edge = 2^(depth-1) * resolution
 
-min_range: 0.5        # Sensor min range (m)
-max_range: 10.0       # Sensor max range (m)
+min_range: 0.5          # Minimum free-space sample distance, not a hit filter (m)
+max_range: 10.0         # Maximum accepted hit distance; <= 0 disables (m)
 
-# Bounds on map height
-min_z: -5.0
-max_z: 5.0
+# Point-height limits in the map frame
+min_z: -5.0             # Minimum inserted point height (m)
+max_z: 5.0              # Maximum inserted point height (m)
 
-# Kernel parameters
-sf2: 1.5                # Actually sigma_0 in sparse kernel
-ell: 1.0                # Length scale of the sparse kernel
+# Sparse kernel
+sf2: 1.5                # Kernel amplitude scaling measurement evidence
+ell: 1.0                # Kernel support radius (m)
 
 # Sampling resolutions
-free_resolution: 2.0   # 6.5 for block depth 5, 3.25 for block depth 4, 13 for depth 6
-ds_resolution: 0.2      # Downsampling factor
+free_resolution: 2.0    # Free-space sample spacing along each beam (m)
+ds_resolution: 0.2      # Input cloud downsampling voxel edge (m)
 
-# Free/Occupied Thresholds
-free_thresh: 0.3
-occupied_thresh: 0.7
+# Occupancy classification
+free_thresh: 0.3        # Occupancy probability below which voxel is free
+occupied_thresh: 0.7    # Occupancy probability above which voxel is occupied
 
-# BGKL parameters
-prior_A: 0.5            # Positive class (occupied)
-prior_B: 0.5            # Negative class (unoccupied)
-var_thresh: 100.0       # Threshold on variance to distinguish known/unknown
+# Occupancy priors and uncertainty
+prior_A: 0.5            # Occupied-class prior pseudo-count
+prior_B: 0.5            # Free-class prior pseudo-count
+var_thresh: 100.0       # Occupancy variance above which voxel is unknown; 100 disables
 
-# Grid Map parameters
-confidence_level: 0.95  # Confidence level for CVaR
-min_z_grid: -1.0        # Min z for grid map
-max_z_grid:  1.0        # Max z for grid map
+# Grid map
+confidence_level: 0.95  # Traversability CVaR confidence in (0, 1)
+min_z_grid: -1.0        # Minimum voxel height relative to odometry (m)
+max_z_grid:  1.0        # Maximum voxel height relative to odometry (m)

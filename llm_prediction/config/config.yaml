@@ -1,6 +1,3 @@
-# config.yaml
-enable_debug: true
-input_topic: "/camera/rgb/image_rect_color/compressed"
-output_topic: "/zest/traversability_image"
-image_resolution: [336, 224]
-area_threshold: 300
+input_topic: "/camera/rgb/image_rect_color/compressed"     # Compressed RGB input topic; launch may override
+output_topic: "/zest/traversability_image"                 # Traversability image output topic; launch may override
+image_resolution: [336, 224]                               # Model input [width, height] in px

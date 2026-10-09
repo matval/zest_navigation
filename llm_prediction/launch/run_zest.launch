@@ -10,7 +10,7 @@
 
     <!-- Behavior and calibration -->
     <arg name="enable_mode"        default="joystick"                              doc="MPPI enable source: joystick or service"/>
-    <arg name="camera_params_file" default="$(find image_projection)/cfg/llm_params.yaml" doc="Camera intrinsics/extrinsics YAML"/>
+    <arg name="camera_params_file" default="$(find image_projection)/cfg/llm_params.yaml" doc="Camera intrinsics YAML; extrinsics come from TF"/>
     <arg name="rviz_config"        default="$(find image_projection)/rviz/lidar_camera.rviz" doc="RViz configuration file"/>
     <arg name="use_sim_time"       default="false"                                 doc="Use /clock (set true when replaying a bag)"/>
     <arg name="rviz"               default="false"                                 doc="Start RViz"/>

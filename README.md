@@ -149,7 +149,7 @@ Start your camera, LiDAR, localization, and command drivers. Connect them with t
 
 Before launching:
 
-- **Sensors:** set camera intrinsics in [`llm_params.yaml`](image_projection/cfg/llm_params.yaml), or pass `camera_params_file:=/path/to/calibration.yaml`. Provide camera–LiDAR and base transforms through TF; adjust LiDAR sampling in [`projection.launch`](image_projection/launch/projection.launch).
+- **Sensors:** configure camera intrinsics in [`llm_params.yaml`](image_projection/cfg/llm_params.yaml), sensor transforms in TF, and LiDAR sampling in [`projection.launch`](image_projection/launch/projection.launch).
 - **Frames:** use `odom` coordinates for odometry, maps, paths, and goals; goals are not frame-transformed. Odometry's `child_frame_id` must identify the robot base.
 - **Robot:** set `robot_length` and `robot_width` in both [`rrt_params.yaml`](rrt_star/config/rrt_params.yaml) and [`mppi_params.yaml`](traversability_mppi/config/mppi_params.yaml); defaults are 0.5 m × 0.3 m. Set MPPI's `reference_speed`, `u_min`, and `u_max` for your robot (forward m/s, angular rad/s).
 
