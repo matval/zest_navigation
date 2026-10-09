@@ -8,6 +8,8 @@ find_package(catkin REQUIRED COMPONENTS
   grid_map_msgs
   nav_msgs
   geometry_msgs
+  tf
+  visualization_msgs
 )
 
 find_package(Eigen3 REQUIRED)
@@ -28,7 +30,7 @@ endif()
 ## catkin specific configuration ##
 catkin_package(
   INCLUDE_DIRS include
-  CATKIN_DEPENDS roscpp grid_map_ros grid_map_msgs nav_msgs geometry_msgs
+  CATKIN_DEPENDS roscpp grid_map_ros grid_map_msgs nav_msgs geometry_msgs tf visualization_msgs
   DEPENDS EIGEN3 OMPL  
 )
 

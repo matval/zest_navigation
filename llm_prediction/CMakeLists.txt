@@ -10,6 +10,7 @@ project(llm_prediction)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   sensor_msgs
+  rospy
 )
 
 ## System dependencies are found with CMake's conventions
@@ -103,7 +104,6 @@ find_package(catkin REQUIRED COMPONENTS
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES wayfast_zero
 #  CATKIN_DEPENDS roscpp sensor_msgs
 #  DEPENDS system_lib
 )
@@ -119,10 +119,6 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/wayfast_zero.cpp
-# )
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -132,7 +128,6 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/wayfast_zero_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -195,11 +190,6 @@ include_directories(
 ## Testing ##
 #############
 
-## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_wayfast_zero.cpp)
-# if(TARGET ${PROJECT_NAME}-test)
-#   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
-# endif()
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)

@@ -23,14 +23,32 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   tf
   octomap_utils
+  geometry_msgs
+  message_filters
+  pcl_ros
+  tf2_ros
 )
 
 find_package(PCL REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Boost REQUIRED)
+find_package(Armadillo REQUIRED)
 
 catkin_package(
   CATKIN_DEPENDS
+    cv_bridge
+    eigen_conversions
+    geometry_msgs
+    image_transport
+    message_filters
+    octomap_utils
+    pcl_ros
+    roscpp
+    rospy
+    sensor_msgs
+    std_msgs
+    tf
+    tf2_ros
   DEPENDS PCL
 )
 
@@ -47,6 +65,7 @@ include_directories(
   ${PCL_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
+  ${ARMADILLO_INCLUDE_DIRS}
 )
 
 add_executable(projection_node  src/projection_node.cpp)
@@ -55,6 +74,7 @@ target_link_libraries(projection_node
    ${PCL_LIBRARIES}
    ${OpenCV_LIBRARIES}
    ${Boost_LIBRARIES}
+   ${ARMADILLO_LIBRARIES}
 )
 
 
