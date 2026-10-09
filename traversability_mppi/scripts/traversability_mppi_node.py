@@ -20,7 +20,7 @@ class TRAVERSABILITY_MPPI_NODE:
         # Define ROS topics
         cmd_topic       = rospy.get_param('~cmd_topic', 'cmd_vel')
         odom_topic      = rospy.get_param('~odom_topic', 'odom')
-        joy_topic       = rospy.get_param('~joy_topic', '/terrasentia/joy')
+        joy_topic       = rospy.get_param('~joy_topic', '/joy')
         # goal_topic      = rospy.get_param('~goal_topic', '/move_base_simple/goal')
         reference_topic = rospy.get_param('~reference_topic', 'planned_path')
         map_topic       = rospy.get_param('~map_topic', 'grid_map')

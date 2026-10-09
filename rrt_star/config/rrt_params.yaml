@@ -1,9 +1,9 @@
 # RRT* config
 frame_id: odom
 
-odom_topic: /terrasentia/dlio/odom_node/odom
-grid_map_topic: /terrasentia/octomap_node/traversability_map
-goal_topic: /terrasentia/goal
+odom_topic: /odom
+grid_map_topic: /zest/octomap_node/traversability_map
+goal_topic: /move_base_simple/goal
 alpha1: 100.0
 alpha2: 1.0
 traversability_threshold: 0.10

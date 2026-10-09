@@ -17,8 +17,8 @@ from openai import OpenAI
 class LLMPredictor:
     def __init__(self):
         # Parameters
-        input_topic = rospy.get_param("~input_topic", "/terrasentia/zed2/zed_node/left/image_rect_color/compressed")
-        output_topic = rospy.get_param("~output_topic", "/traversability_map/compressed")
+        input_topic = rospy.get_param("~input_topic", "/camera/rgb/image_rect_color/compressed")
+        output_topic = rospy.get_param("~output_topic", "/zest/traversability_image")
         self.image_resolution = rospy.get_param('~image_resolution', [336, 224])
         self.area_threshold = rospy.get_param('~area_threshold', 500)
         self.test_mode = rospy.get_param('~test_mode', True)

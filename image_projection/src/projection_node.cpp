@@ -58,8 +58,8 @@ double interpol_value = 20.0;
 bool f_pc = true; 
 
 // Input topics for image and point cloud
-std::string imgTopic = "/camera/color/image_raw";
-std::string pcTopic = "/velodyne_points";
+std::string imgTopic = "/zest/traversability_image";
+std::string pcTopic = "/lidar/points";
 
 // Matrix for camera intrinsics
 Eigen::MatrixXf Mc(3,4);  // Camera calibration matrix

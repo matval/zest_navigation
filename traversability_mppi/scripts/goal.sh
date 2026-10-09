@@ -1,7 +1,11 @@
-rostopic pub /move_base_simple/goal geometry_msgs/PoseStamped "header:
+#!/bin/bash
+# Usage: goal.sh [goal_topic]   (default: /move_base_simple/goal)
+GOAL_TOPIC="${1:-/move_base_simple/goal}"
+
+rostopic pub "$GOAL_TOPIC" geometry_msgs/PoseStamped "header:
   seq: 0
   stamp: {secs: 0, nsecs: 0}
-  frame_id: 'world'
+  frame_id: 'odom'
 pose:
   position:
       x: 7.115
