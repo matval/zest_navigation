@@ -106,7 +106,10 @@ bool RRTNode::isStateValid(const ob::State* state) {
 
     grid_map::Position position(x, y);
     grid_map::Index index;
-    grid_map_.getIndex(position, index);
+    if (!grid_map_.getIndex(position, index)) {
+        // Outside the mapped area: treat as unobserved (valid).
+        return true;
+    }
 
     float traversability = grid_map_.at("traversability", index);
     float lambda = grid_map_.at("lambda", index);

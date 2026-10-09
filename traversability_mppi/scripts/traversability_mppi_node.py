@@ -95,11 +95,24 @@ class TRAVERSABILITY_MPPI_NODE:
         if self.publish_rollouts:
             self.pub_rollouts = rospy.Publisher('mppi_rollouts', PointCloud2, queue_size=1)
 
+        self.warmup()
+
         # Set loop rate
         rate = rospy.Rate(50)
         while not rospy.is_shutdown():
             self.run_navigation()
             rate.sleep()
+
+    def warmup(self):
+        # One dummy pass so JIT compile and CUDA allocation happen before the control loop.
+        odom_tensor = torch.zeros(1, 3, dtype=self.dtype, device=self.device)
+        reference = torch.zeros(1, self.N, 5, dtype=self.dtype, device=self.device)
+        trav_map = torch.ones(1, 2, 100, 100, dtype=self.dtype, device=self.device)
+        grid_bounds = {'xbound': [-5.0, 5.0, 0.1], 'ybound': [-5.0, 5.0, 0.1]}
+        with torch.no_grad():
+            with torch.autocast(device_type='cuda', dtype=torch.float16):
+                self.mppi(odom_tensor, reference, trav_map, grid_bounds)
+        print('MPPI warmup done')
 
     def run_navigation(self):
         # Run only when a new reference and map arrives
@@ -108,7 +121,7 @@ class TRAVERSABILITY_MPPI_NODE:
 
         odom = copy.deepcopy(self.current_pose)
         mpc_reference = self.update_reference()
-        trav_map = copy.deepcopy(self.trav_map)
+        trav_map = self.trav_map
         grid_bounds = copy.deepcopy(self.grid_bounds)
 
         if len(mpc_reference['x']) == 0 or not self.run_mppi:
@@ -136,8 +149,6 @@ class TRAVERSABILITY_MPPI_NODE:
                 mpc_reference['theta'],
                 mpc_reference['v'],
                 mpc_reference['omega']], dtype=self.dtype, device=self.device).t().unsqueeze(0)
-
-            trav_map = torch.tensor(trav_map, dtype=self.dtype, device=self.device).unsqueeze(0)
 
             # And run MPPI
             with torch.no_grad():
@@ -264,8 +275,8 @@ class TRAVERSABILITY_MPPI_NODE:
         # Convert to NumPy array
         epistemic = np.array(data, dtype=np.float32).reshape((nrows, ncols))
 
-        # Store the traversability map
-        self.trav_map = np.stack([traversability, epistemic], 0)
+        # Store the traversability map on the GPU (uploaded once per map, not per loop)
+        self.trav_map = torch.tensor(np.stack([traversability, epistemic], 0), dtype=self.dtype, device=self.device).unsqueeze(0)
 
         min_x = msg.info.pose.position.x - msg.info.length_x / 2
         min_y = msg.info.pose.position.y - msg.info.length_y / 2
