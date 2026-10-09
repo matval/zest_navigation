@@ -1,12 +1,11 @@
 # RRT* config
-frame_id: odom
+frame_id: odom                                         # Output coordinate frame.
 
-odom_topic: /odom
-grid_map_topic: /zest/octomap_node/traversability_map
-goal_topic: /move_base_simple/goal
-alpha1: 100.0
-alpha2: 1.0
-traversability_threshold: 0.10
-planning_frequency: 0.1
-num_samples: 10
-solver_time: 10.0
+odom_topic: /odom                                      # Odometry input topic.
+grid_map_topic: /zest/octomap_node/traversability_map  # Traversability map topic.
+goal_topic: /move_base_simple/goal                     # Goal input topic.
+alpha1: 100.0                                          # Traversability cost weight.
+alpha2: 1.0                                            # Evidence deficit cost weight.
+traversability_threshold: 0.10                         # Minimum valid traversability.
+planning_frequency: 0.1                                # Target planning frequency (Hz).
+solver_time: 10.0                                      # Solve time budget (s).

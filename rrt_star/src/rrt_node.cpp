@@ -22,7 +22,6 @@ RRTNode::RRTNode() :
     nh_.param("traversability_threshold", traversability_threshold_, 0.10);   
     nh_.param("robot_length", robot_length_, 0.5); 
     nh_.param("robot_width", robot_width_, 0.3);   
-    nh_.param("num_samples", num_samples_, 10);
     nh_.param("planning_frequency", planning_frequency_, 0.5);
     nh_.param("solver_time", solver_time_, 1.0);
 

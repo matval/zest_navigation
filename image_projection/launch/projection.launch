@@ -16,7 +16,7 @@
         <param name="max_var"           type="double"   value="100.0" />
         <param name="filter_output_pc"  type="bool"     value="false" />
 
-        <!-- Load intrinsic and extrinic matrices -->
+        <!-- Load camera intrinsics; extrinsics come from TF -->
         <rosparam file="$(arg params_file)" />
     </node>
 </launch>

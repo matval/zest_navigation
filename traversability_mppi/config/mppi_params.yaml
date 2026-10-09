@@ -1,23 +1,23 @@
 # This file contains the parameters for the MPPI algorithm
 
 # ROS topic names
-cmd_topic: /cmd_vel
-odom_topic: /odom
+cmd_topic: /cmd_vel                               # Velocity output topic
+odom_topic: /odom                                 # Odometry input topic
 # goal_topic: /move_base_simple/goal
-reference_topic: /zest/rrt_node/planned_path
-map_topic: /zest/octomap_node/traversability_map
+reference_topic: /zest/rrt_node/planned_path      # Reference path topic
+map_topic: /zest/octomap_node/traversability_map  # Traversability map topic
 
-# Enable source: joystick or service. Both start with motion disabled.
-enable_mode: joystick
-joy_topic: /joy
+# Motion starts disabled.
+enable_mode: joystick                             # Enable source: joystick or service
+joy_topic: /joy                                   # Joystick input topic
 
 # MPPI parameters
-horizon: 30
-num_samples: 1024
-delta_time: 0.5
-gamma: 0.01
-reference_speed: 0.4
-u_min: [-0.2, -2.0] 
-u_max: [0.4, 2.0]
-noise_mu: [0.2, 0.0]
-noise_sigma: [0.2, 0.8]
+horizon: 30                                       # Predicted rollout states
+num_samples: 1024                                 # Sampled control sequences
+delta_time: 0.5                                   # Prediction time step (s)
+gamma: 0.01                                       # Inverse cost temperature
+reference_speed: 0.4                              # Target linear speed (m/s)
+u_min: [-0.2, -2.0]                               # Minimum [linear, angular] speed (m/s, rad/s)
+u_max: [0.4, 2.0]                                 # Maximum [linear, angular] speed (m/s, rad/s)
+noise_mu: [0.2, 0.0]                              # Noise means [linear, angular] (m/s, rad/s)
+noise_sigma: [0.2, 0.8]                           # Noise standard deviations (m/s, rad/s)

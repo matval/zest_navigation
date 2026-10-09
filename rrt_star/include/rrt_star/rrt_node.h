@@ -150,7 +150,6 @@ private:
     double traversability_threshold_;          ///< Threshold value for traversability.
     double robot_length_;                      ///< Length of the robot.
     double robot_width_;                       ///< Width of the robot.
-    int num_samples_;                          ///< Number of samples to take along the motion.
     double planning_frequency_;                ///< Frequency for triggering the planning process.
     double solver_time_;                       ///< Time limit for the planner to solve the problem.
 
