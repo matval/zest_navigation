@@ -31,6 +31,10 @@ find_package(catkin REQUIRED COMPONENTS
     tf2_geometry_msgs
     grid_map_ros
     grid_map_msgs
+    tf2_eigen
+    message_filters
+    std_msgs
+    sensor_msgs
 )
 
 catkin_package(

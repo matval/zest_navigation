@@ -2,7 +2,7 @@
 <package format="2">
   <name>llm_prediction</name>
   <version>0.0.0</version>
-  <description>The wayfast_zero package</description>
+  <description>VLM-based zero-shot traversability prediction for ZeST.</description>
 
   <maintainer email="mvalve2@illinois.edu">Mateus V. Gasparino</maintainer>
 
@@ -13,10 +13,20 @@
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>
   <build_depend>sensor_msgs</build_depend>
+  <build_depend>rospy</build_depend>
   <build_export_depend>roscpp</build_export_depend>
   <build_export_depend>sensor_msgs</build_export_depend>
+  <build_export_depend>rospy</build_export_depend>
   <exec_depend>roscpp</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>roslaunch</exec_depend>
+  <exec_depend>rviz</exec_depend>
+  <exec_depend>grid_map_rviz_plugin</exec_depend>
+  <exec_depend>image_projection</exec_depend>
+  <exec_depend>traversability_octomap</exec_depend>
+  <exec_depend>rrt_star</exec_depend>
+  <exec_depend>traversability_mppi</exec_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

@@ -4,4 +4,3 @@ input_topic: "/terrasentia/zed2/zed_node/rgb/image_rect_color/compressed"
 output_topic: "/terrasentia/traversability_map"
 image_resolution: [336, 224]
 area_threshold: 300
-model_type: "small"

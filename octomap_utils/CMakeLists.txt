@@ -4,12 +4,9 @@ project(octomap_utils)
 ## Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  rospy
-  cv_bridge
   sensor_msgs
   pcl_ros
 )
-find_package(OpenCV REQUIRED)
 find_package(PCL REQUIRED)
 
 ## Catkin package configuration
@@ -25,7 +22,6 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
-  ${OpenCV_INCLUDE_DIRS}
 )
 
 add_library(${PROJECT_NAME}
@@ -37,15 +33,6 @@ install(DIRECTORY include/${PROJECT_NAME}/
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
   FILES_MATCHING PATTERN "*.h"
   PATTERN ".svn" EXCLUDE
-)
-
-# Python script
-catkin_install_python(PROGRAMS scripts/image_transform.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
-
-catkin_install_python(PROGRAMS scripts/wayfast_node.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 install(TARGETS ${PROJECT_NAME}

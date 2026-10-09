@@ -1,20 +1,14 @@
 import re
 import cv2
 import time
-import torch
 import rospy
 import rospkg
 import numpy as np
 import skimage as ski
 import polylabel
 
-from torch.cuda.amp import autocast
 from skimage.segmentation import slic
 from sensor_msgs.msg import Image, CompressedImage
-
-# Import the SAM model
-from sam2.build_sam import build_sam2
-from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
 
 # ChatGPT imports
 import base64
@@ -28,41 +22,6 @@ class LLMPredictor:
         self.image_resolution = rospy.get_param('~image_resolution', [336, 224])
         self.area_threshold = rospy.get_param('~area_threshold', 500)
         self.test_mode = rospy.get_param('~test_mode', True)
-        model_type = rospy.get_param('~model_type', 'tiny')
-
-        # Load the SAM model
-        if model_type == "tiny":
-            sam2_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam2.1_hiera_tiny.pt"
-            model_cfg = "configs/sam2.1/sam2.1_hiera_t.yaml"
-        elif model_type == "small":
-            sam2_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam2.1_hiera_small.pt"
-            model_cfg = "configs/sam2.1/sam2.1_hiera_s.yaml"
-        elif model_type == "large":
-            sam2_checkpoint = rospkg.RosPack().get_path('llm_prediction') + "/checkpoint/sam2.1_hiera_large.pt"
-            model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
-        else:
-            raise ValueError(f"Invalid model type: {model_type}")
-
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"LLM prediction node using device: {device}")
-
-        if False:
-            sam2 = build_sam2(model_cfg, sam2_checkpoint, device=device, apply_postprocessing=False)
-            sam2.to(device=device)
-
-            self.mask_generator = SAM2AutomaticMaskGenerator(
-                model                   = sam2,
-                box_nms_thresh          = 0.7,
-                points_per_side         = 8,  
-                points_per_batch        = 128,  
-                pred_iou_thresh         = 0.95,     
-                stability_score_thresh  = 0.9, 
-                stability_score_offset  = 0.7,          
-                crop_n_layers           = 1,
-                crop_n_points_downscale_factor = 4,
-                min_mask_region_area    = 300,
-                use_m2m = False,         
-            )
 
         # Load the ChatGPT model
         key_file = rospkg.RosPack().get_path('llm_prediction') + '/../api_key.txt'
@@ -93,7 +52,7 @@ class LLMPredictor:
         # with open(image_path, "rb") as image_file:
         #     base64_image = base64.b64encode(image_file.read()).decode('utf-8')
         base64_image = base64.b64encode(cv2.imencode('.png', image)[1]).decode('utf-8')
-       
+
         # Query the model
         response = self.client.chat.completions.create(
             model="gpt-4o-2024-08-06",
@@ -130,7 +89,7 @@ class LLMPredictor:
         Adds numbers to corresponding masks on the image.
         
         Parameters:
-        - anns: List of annotations from the model.
+        - anns: List of SLIC region masks and their areas.
         
         Returns:
         - Annotated image with numbers on the masks.
@@ -141,21 +100,6 @@ class LLMPredictor:
 
         sorted_anns = sorted(anns, key=(lambda x: x['area']), reverse=True)[:10]
         
-        # new_masks = []
-        # while sorted_anns:
-        #     # Find overlapping masks
-        #     bitwise_or = [cv2.bitwise_and(ann['segmentation'].astype(np.uint8), sorted_anns[0]['segmentation'].astype(np.uint8)) for ann in sorted_anns]
-        #     any_overlap = np.array([np.any(a) for a in bitwise_or])
-        #     idx = np.where(any_overlap)[0]
-            
-        #     # Select the largest mask by area
-        #     areas = [sorted_anns[i]['area'] for i in idx]
-        #     largest_idx = idx[np.argmax(areas)]
-        #     new_masks.append(sorted_anns[largest_idx])
-            
-        #     # Remove processed annotations
-        #     sorted_anns = [ann for i, ann in enumerate(sorted_anns) if i not in idx]
-
         rank_dict = {}
         for i, ann in enumerate(sorted_anns):
             m = ann['segmentation']
@@ -220,12 +164,6 @@ class LLMPredictor:
 
         # Resize the image
         cv_image = cv2.resize(cv_image, self.image_resolution)
-
-        # time_start = time.time()
-        # # Get masks from the SAM model
-        # with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
-        #     masks = self.mask_generator.generate(cv_image)
-        # print(f"Time taken for SAM: {time.time() - time_start}")
 
         time_start = time.time()
         masks = slic(cv_image, n_segments=10, compactness=5, sigma=1)
