@@ -15,6 +15,7 @@ University of Illinois at Urbana-Champaign<br>
 <p align="center">
   <a href="https://arxiv.org/abs/2508.19131"><img src="https://img.shields.io/badge/Paper-arXiv-red?style=flat-square&labelColor=444444" alt="Paper arXiv"></a>
   <a href="https://arxiv.org/pdf/2508.19131"><img src="https://img.shields.io/badge/Paper-PDF-red?style=flat-square&labelColor=444444" alt="Paper PDF"></a>
+  <a href="https://doi.org/10.1109/LRA.2026.3746141"><img src="https://img.shields.io/badge/DOI-10.1109%2FLRA.2026.3746141-green?style=flat-square&labelColor=444444" alt="IEEE RA-L DOI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square&labelColor=444444" alt="MIT License"></a>
 </p>
 
@@ -151,7 +152,7 @@ Before launching:
 
 - **Sensors:** configure camera intrinsics in [`llm_params.yaml`](image_projection/cfg/llm_params.yaml), sensor transforms in TF, and LiDAR sampling in [`projection.launch`](image_projection/launch/projection.launch).
 - **Frames:** use `odom` coordinates for odometry, maps, paths, and goals; goals are not frame-transformed. Odometry's `child_frame_id` must identify the robot base.
-- **Robot:** set `robot_length` and `robot_width` in both [`rrt_params.yaml`](rrt_star/config/rrt_params.yaml) and [`mppi_params.yaml`](traversability_mppi/config/mppi_params.yaml); defaults are 0.5 m × 0.3 m. Set MPPI's `reference_speed`, `u_min`, and `u_max` for your robot (forward m/s, angular rad/s).
+- **Robot:** the RRT* and MPPI nodes both read `robot_length` and `robot_width` as ROS parameters, defaulting to 0.5 m × 0.3 m. These keys are not listed in the config files; to override the defaults, add them (in meters) to both [`rrt_params.yaml`](rrt_star/config/rrt_params.yaml) and [`mppi_params.yaml`](traversability_mppi/config/mppi_params.yaml), which `run_zest.launch` loads into each node's namespace. Set MPPI's `reference_speed`, `u_min`, and `u_max` for your robot (forward m/s, angular rad/s).
 
 Activate `env/` and launch, replacing the example topics with your driver's topics:
 
@@ -204,14 +205,15 @@ In the paper's four navigation scenarios, ZeST achieves **90–100% success** ov
 If you find this work useful in your research, please cite:
 
 ```bibtex
-@article{gummadi2026zest,
-  title   = {{ZeST}: A {VLM}-based Zero-Shot Traversability Navigation for Unknown Environments},
-  author  = {Gummadi, Shreya and Gasparino, Mateus V. and Capezzuto, Gianluca and Becker, Marcelo and Chowdhary, Girish},
-  journal = {IEEE Robotics and Automation Letters},
-  year    = {2026},
-  note    = {Accepted October 2026; preprint},
-  url     = {https://arxiv.org/abs/2508.19131}
-}
+@ARTICLE{11745976,
+  author={Gummadi, Shreya and Gasparino, Mateus V. and Capezzuto, Gianluca and Becker, Marcelo and Chowdhary, Girish},
+  journal={IEEE Robotics and Automation Letters}, 
+  title={ZeST: A VLM-Based Zero-Shot Traversability Navigation for Unknown Environments}, 
+  year={2026},
+  volume={11},
+  number={12},
+  pages={14412-14419},
+  doi={10.1109/LRA.2026.3746141}}
 ```
 
 ## Acknowledgements
